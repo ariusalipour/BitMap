@@ -129,7 +129,7 @@ async function select(id: string) {
   const appearance = appearances.get(id)!;
   $('detail').innerHTML = `<p class="component-type" title="${esc(appearance.label)}">${appearance.svg}<span>${esc(node.type)}</span></p><h3 class="detail-title">${esc(node.label)}</h3>${groups.has(node.groupId!) ? `<p class="component-area">${esc(groups.get(node.groupId!)!)}</p>` : ''}${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}${explorer.active ? '' : `<p class="description">${esc(node.description || node.type)}</p>`}${explorer.inspector(id)}${!explorer.active && node.path && explorer.moduleForPath(node.path) ? `<button id="explore-component">Explore code</button>` : ''}<div data-comparison-detail>${comparison.inspector(id)}</div>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<button class="clear-selection">Clear selection</button>`;
   explorer.bindInspector();
-  $('explore-component')?.addEventListener('click',()=>explorer.open(explorer.moduleForPath(node.path!)!.id));
+  $('explore-component')?.addEventListener('click',()=>explorer.open(explorer.moduleForPath(node.path!)!.id,'children'));
   for(const button of $('detail').querySelectorAll<HTMLButtonElement>('[data-select]')) button.addEventListener('click',() => select(button.dataset.select!));
   $('detail').querySelector('.clear-selection')!.addEventListener('click',clearSelection);
 }
