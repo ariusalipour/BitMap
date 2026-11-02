@@ -1,0 +1,151 @@
+{
+  "groups": [
+    {
+      "id": "interface",
+      "label": "Workspace",
+      "description": null
+    },
+    {
+      "id": "runtime",
+      "label": "Local runtime",
+      "description": null
+    },
+    {
+      "id": "pipeline",
+      "label": "Snapshot pipeline",
+      "description": null
+    }
+  ],
+  "nodes": [
+    {
+      "id": "workspace",
+      "label": "Architecture workspace",
+      "type": "Browser UI",
+      "path": "viewer.ts",
+      "description": "Explore components, inspect relationships, switch views and export diagrams.",
+      "groupId": "interface",
+      "shape": "box"
+    },
+    {
+      "id": "gestures",
+      "label": "Diagram interactions",
+      "type": "Pointer handling",
+      "path": "diagram-interactions.ts",
+      "description": "Keep panning separate from intentional component selection and native text highlighting.",
+      "groupId": "interface",
+      "shape": "box"
+    },
+    {
+      "id": "viewport",
+      "label": "Pan and zoom",
+      "type": "Viewport",
+      "path": "vendor/gitdiagram/src/mcp-app/viewport.ts",
+      "description": "Fit the graph, zoom to readable labels and navigate with pointer or keyboard.",
+      "groupId": "interface",
+      "shape": "box"
+    },
+    {
+      "id": "server",
+      "label": "Local server",
+      "type": "HTTP and MCP",
+      "path": "server.mjs",
+      "description": "Serve assets and only graph-linked source files through a read-only loopback listener.",
+      "groupId": "runtime",
+      "shape": "box"
+    },
+    {
+      "id": "build",
+      "label": "Snapshot build",
+      "type": "Build pipeline",
+      "path": "build.mjs",
+      "description": "Validate the supplied graph and local source paths, compile Mermaid and bundle browser assets.",
+      "groupId": "pipeline",
+      "shape": "box"
+    },
+    {
+      "id": "schema",
+      "label": "Graph schema",
+      "type": "Validation",
+      "path": "vendor/gitdiagram/src/features/diagram/graph.ts",
+      "description": "Define groups, components, connections and supported diagram shapes.",
+      "groupId": "pipeline",
+      "shape": "box"
+    },
+    {
+      "id": "compiler",
+      "label": "Mermaid compiler",
+      "type": "Graph compiler",
+      "path": "vendor/gitdiagram/src/server/generate/graph.ts",
+      "description": "Check graph relationships and compile the validated graph into Mermaid.",
+      "groupId": "pipeline",
+      "shape": "box"
+    },
+    {
+      "id": "security",
+      "label": "Rendering safety",
+      "type": "Sanitisation",
+      "path": "vendor/gitdiagram/src/features/diagram/mermaid-security.ts",
+      "description": "Filter unsafe Mermaid directives before the browser sanitises the resulting SVG.",
+      "groupId": "interface",
+      "shape": "box"
+    }
+  ],
+  "edges": [
+    {
+      "from": "workspace",
+      "to": "gestures",
+      "label": "handles gestures",
+      "description": null,
+      "style": "solid",
+      "evidencePath": "viewer.ts"
+    },
+    {
+      "from": "workspace",
+      "to": "viewport",
+      "label": "navigates diagram",
+      "description": null,
+      "style": "solid",
+      "evidencePath": "viewer.ts"
+    },
+    {
+      "from": "workspace",
+      "to": "security",
+      "label": "filters Mermaid",
+      "description": null,
+      "style": "solid",
+      "evidencePath": "viewer.ts"
+    },
+    {
+      "from": "server",
+      "to": "workspace",
+      "label": "serves workspace",
+      "description": null,
+      "style": "solid",
+      "evidencePath": "server.mjs"
+    },
+    {
+      "from": "build",
+      "to": "schema",
+      "label": "parses graph",
+      "description": null,
+      "style": "solid",
+      "evidencePath": "vendor/gitdiagram/src/server/generate/graph.ts"
+    },
+    {
+      "from": "build",
+      "to": "compiler",
+      "label": "validates and compiles",
+      "description": null,
+      "style": "solid",
+      "evidencePath": "build.mjs"
+    },
+    {
+      "from": "build",
+      "to": "server",
+      "label": "writes snapshot",
+      "description": null,
+      "style": "solid",
+      "evidencePath": "build.mjs"
+    }
+  ]
+}

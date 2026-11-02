@@ -1,0 +1,106 @@
+import { z } from "zod";
+
+const MAX_GRAPH_GROUPS = 10;
+const MAX_GRAPH_NODES = 34;
+const MAX_GRAPH_EDGES = 48;
+const MAX_GRAPH_LABEL_LENGTH = 72;
+const MAX_GRAPH_TYPE_LENGTH = 72;
+const MAX_GRAPH_DESCRIPTION_LENGTH = 240;
+const MAX_GRAPH_PATH_LENGTH = 512;
+export const MAX_GRAPH_ATTEMPTS = 3;
+
+export function normalizeDiagramText(value: string): string {
+  return value
+    .normalize("NFC")
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function renderableDiagramTextSchema(maxLength: number) {
+  return z
+    .string()
+    .trim()
+    .min(1)
+    .max(maxLength)
+    .refine((value) => normalizeDiagramText(value).length > 0, {
+      message: "Must contain visible text.",
+    });
+}
+
+const diagramNodeShapeSchema = z.enum([
+  "box",
+  "database",
+  "queue",
+  "document",
+  "circle",
+  "hexagon",
+]);
+
+const diagramEdgeStyleSchema = z.enum(["solid", "dashed"]);
+
+const diagramGroupSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .regex(/^[a-z][a-z0-9_]*$/),
+  label: renderableDiagramTextSchema(MAX_GRAPH_LABEL_LENGTH),
+  description: z.string().trim().max(MAX_GRAPH_DESCRIPTION_LENGTH).nullable(),
+});
+
+const diagramNodeSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .regex(/^[a-z][a-z0-9_]*$/),
+  label: renderableDiagramTextSchema(MAX_GRAPH_LABEL_LENGTH),
+  type: renderableDiagramTextSchema(MAX_GRAPH_TYPE_LENGTH),
+  description: z.string().trim().max(MAX_GRAPH_DESCRIPTION_LENGTH).nullable(),
+  groupId: z
+    .string()
+    .trim()
+    .regex(/^[a-z][a-z0-9_]*$/)
+    .nullable(),
+  path: z.string().trim().min(1).max(MAX_GRAPH_PATH_LENGTH).nullable(),
+  shape: diagramNodeShapeSchema.nullable(),
+});
+
+const diagramEdgeSchema = z.object({
+  from: z
+    .string()
+    .trim()
+    .regex(/^[a-z][a-z0-9_]*$/),
+  to: z
+    .string()
+    .trim()
+    .regex(/^[a-z][a-z0-9_]*$/),
+  label: renderableDiagramTextSchema(MAX_GRAPH_LABEL_LENGTH).nullable(),
+  description: z.string().trim().max(MAX_GRAPH_DESCRIPTION_LENGTH).nullable(),
+  style: diagramEdgeStyleSchema.nullable(),
+  // The repository file where the relationship is visible (an import, call,
+  // route or config). Required-but-nullable for strict structured output; the
+  // default keeps graphs from before this field (and lenient providers) valid.
+  // An empty string means "none"; unknown paths are stripped, never fatal.
+  evidencePath: z
+    .string()
+    .trim()
+    .max(MAX_GRAPH_PATH_LENGTH)
+    .nullable()
+    .default(null),
+});
+
+export const diagramGraphSchema = z.object({
+  groups: z.array(diagramGroupSchema).max(MAX_GRAPH_GROUPS),
+  nodes: z.array(diagramNodeSchema).min(1).max(MAX_GRAPH_NODES),
+  edges: z.array(diagramEdgeSchema).max(MAX_GRAPH_EDGES),
+});
+
+export type DiagramGraphNode = z.infer<typeof diagramNodeSchema>;
+/** Stored graphs made before edge evidence existed have no `evidencePath`. */
+export type DiagramGraphEdge = Omit<
+  z.infer<typeof diagramEdgeSchema>,
+  "evidencePath"
+> & { evidencePath?: string | null };
+export type DiagramGraph = Omit<z.infer<typeof diagramGraphSchema>, "edges"> & {
+  edges: DiagramGraphEdge[];
+};
