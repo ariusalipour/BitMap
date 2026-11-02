@@ -3,6 +3,9 @@ export type ComponentAppearance = { kind: string; label: string; svg: string };
 type IconDefinition = { kind: string; label: string; drawing: string };
 
 const icons: Record<string, IconDefinition> = {
+  property: { kind: 'property', label: 'Property', drawing: '<path d="M3 5h14M3 10h14M3 15h14"/><circle cx="7" cy="5" r="2"/><circle cx="13" cy="10" r="2"/><circle cx="8" cy="15" r="2"/>' },
+  type: { kind: 'type', label: 'Type', drawing: '<path d="M3 4h14M10 4v12M6 16h8M3 3v3M17 3v3"/>' },
+  hook: { kind: 'hook', label: 'Hook', drawing: '<path d="M12 3v9a4 4 0 0 1-8 0v-2M4 10l-2 3M4 10l2 3"/><circle cx="12" cy="3" r="1.5"/>' },
   class: { kind: 'class', label: 'Class', drawing: '<path d="M10 2.5 17 6.3v7.4L10 17.5 3 13.7V6.3z"/><path d="m3.2 6.4 6.8 3.8 6.8-3.8M10 10.2v7"/>' },
   interface: { kind: 'interface', label: 'Interface', drawing: '<circle cx="10" cy="10" r="7"/><path d="M8 6.5h4M10 6.5v7M8 13.5h4"/>' },
   function: { kind: 'function', label: 'Function', drawing: '<path d="M7 4.5H5.8A2.3 2.3 0 0 0 3.5 6.8v1A2.2 2.2 0 0 1 1.8 10a2.2 2.2 0 0 1 1.7 2.2v1a2.3 2.3 0 0 0 2.3 2.3H7M13 4.5h1.2a2.3 2.3 0 0 1 2.3 2.3v1a2.2 2.2 0 0 0 1.7 2.2 2.2 2.2 0 0 0-1.7 2.2v1a2.3 2.3 0 0 1-2.3 2.3H13M8.3 13.8l3.4-7.6"/>' },
@@ -25,6 +28,9 @@ const typeRules: Array<[keyof typeof icons, RegExp]> = [
   ['class', /^(?:class|klass)$/],
   ['interface', /^(?:interface|protocol)$/],
   ['method', /^(?:method|constructor)$/],
+  ['property', /^(?:property|field)$/],
+  ['type', /^(?:type|enum)$/],
+  ['hook', /^hook$/],
   ['function', /^(?:function|func|procedure|callback|handler)$/],
   ['module', /^(?:module|package|namespace)$/],
   ['folder', /^(?:folder|directory|dir)$/],

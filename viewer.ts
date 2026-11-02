@@ -8,6 +8,7 @@ import { installDiagramInteractions } from './diagram-interactions';
 import { getComponentAppearance } from './component-icons';
 import { createThemeController, type Theme } from './theme';
 import { createComparisonController } from './comparison-ui';
+import { createSemanticExplorer } from './semantic-explorer';
 
 type Node = { id: string; label: string; type: string; description: string | null; groupId: string | null; path: string | null; shape?: string | null };
 type Edge = { from: string; to: string; label: string | null; evidencePath?: string | null };
@@ -17,6 +18,7 @@ const emptyInspector = $('detail').innerHTML;
 let viewport: ReturnType<typeof createViewport> | undefined;
 let renderedSvg: SVGSVGElement | undefined;
 let selectedId: string | null = null;
+let mermaidExportUrl: string | undefined;
 function diagramPalette() {
   const style = getComputedStyle(document.documentElement);
   const value = (name: string) => style.getPropertyValue(name).trim();
@@ -65,11 +67,11 @@ const data = await fetch('/diagram.json').then(r => { if (!r.ok) throw Error('Ca
 document.title = data.title === 'BitMap' ? 'BitMap — Code architecture' : `${data.title} — BitMap`;
 $('project-title').textContent = data.title;
 const exportName = data.title.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'bitmap';
-const graph = data.graph as { nodes: Node[]; edges: Edge[]; groups: {id:string;label:string}[] };
+let graph = data.graph as { nodes: Node[]; edges: Edge[]; groups: {id:string;label:string}[] };
 let activeGraph = data.views[0].graph as typeof graph;
-const groups = new Map(graph.groups.map(g => [g.id,g.label]));
-const byId = new Map(graph.nodes.map(n => [n.id,n]));
-const appearances = new Map(graph.nodes.map(n => [n.id,getComponentAppearance(n)]));
+let groups = new Map(graph.groups.map(g => [g.id,g.label]));
+let byId = new Map(graph.nodes.map(n => [n.id,n]));
+let appearances = new Map(graph.nodes.map(n => [n.id,getComponentAppearance(n)]));
 const search = $('search') as HTMLInputElement;
 const viewSelect = $('view') as HTMLSelectElement;
 installDiagramInteractions($('stage'));
@@ -78,6 +80,18 @@ const comparison = createComparisonController(() => {
   const detail = $('detail').querySelector('[data-comparison-detail]');
   if (detail) detail.innerHTML = comparison.inspector(selectedId);
 });
+
+const architectureGraph = graph;
+function useGraph(next: typeof graph) {
+  graph=next; groups=new Map(graph.groups.map(g=>[g.id,g.label])); byId=new Map(graph.nodes.map(n=>[n.id,n])); appearances=new Map(graph.nodes.map(n=>[n.id,getComponentAppearance(n)])); clearSelection();
+}
+const explorer=createSemanticExplorer({
+  indexed:()=>{syncSelection();comparison.annotate(renderedSvg);},
+  render:async view=>{ useGraph(view.graph); await renderGraphView(view); if(view.focus && byId.has(view.focus)) await select(view.focus); },
+  restore:async()=>{ useGraph(architectureGraph); await renderView(viewSelect.value); },
+  changed:active=>{ comparison.setScope(active || data.semanticGenerated ? 'semantic' : 'architecture'); search.value=''; search.placeholder=active ? 'Find classes, functions, files...' : 'Find a component'; $('navigator').querySelector('h2')!.textContent=active ? 'Code symbols' : 'Components'; }
+});
+const semanticReady = explorer.load();
 
 function panel(name: 'navigator' | 'inspector', open: boolean) {
   document.body.dataset[name] = open ? 'open' : 'closed';
@@ -108,16 +122,19 @@ function relationshipList(edges: Edge[],incoming: boolean) {
 }
 async function select(id: string) {
   const node = byId.get(id); if(!node) return;
-  if(!activeGraph.nodes.some(n => n.id === id)) { viewSelect.value = 'all'; await renderView('all'); }
+  if(!explorer.active && !activeGraph.nodes.some(n => n.id === id)) { viewSelect.value = 'all'; await renderView('all'); }
   selectedId = id; syncSelection(); panel('inspector',true);
   if(innerWidth <= 700) panel('navigator',false);
   const incoming = graph.edges.filter(e => e.to === id), outgoing = graph.edges.filter(e => e.from === id);
   const appearance = appearances.get(id)!;
-  $('detail').innerHTML = `<p class="component-type" title="${esc(appearance.label)}">${appearance.svg}<span>${esc(node.type)}</span></p><h3 class="detail-title">${esc(node.label)}</h3>${groups.has(node.groupId!) ? `<p class="component-area">${esc(groups.get(node.groupId!)!)}</p>` : ''}${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}<p class="description">${esc(node.description || node.type)}</p><div data-comparison-detail>${comparison.inspector(id)}</div>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<button class="clear-selection">Clear selection</button>`;
+  $('detail').innerHTML = `<p class="component-type" title="${esc(appearance.label)}">${appearance.svg}<span>${esc(node.type)}</span></p><h3 class="detail-title">${esc(node.label)}</h3>${groups.has(node.groupId!) ? `<p class="component-area">${esc(groups.get(node.groupId!)!)}</p>` : ''}${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}${explorer.active ? '' : `<p class="description">${esc(node.description || node.type)}</p>`}${explorer.inspector(id)}${!explorer.active && node.path && explorer.moduleForPath(node.path) ? `<button id="explore-component">Explore code</button>` : ''}<div data-comparison-detail>${comparison.inspector(id)}</div>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<button class="clear-selection">Clear selection</button>`;
+  explorer.bindInspector();
+  $('explore-component')?.addEventListener('click',()=>explorer.open(explorer.moduleForPath(node.path!)!.id));
   for(const button of $('detail').querySelectorAll<HTMLButtonElement>('[data-select]')) button.addEventListener('click',() => select(button.dataset.select!));
   $('detail').querySelector('.clear-selection')!.addEventListener('click',clearSelection);
 }
 function componentIndex() {
+  if(explorer.active) { explorer.index(); return; }
   const query = search.value.toLowerCase();
   const matches = activeGraph.nodes.filter(n => `${n.label} ${n.description} ${n.path}`.toLowerCase().includes(query));
   $('count').textContent = query ? `${matches.length} / ${activeGraph.nodes.length}` : String(activeGraph.nodes.length);
@@ -135,6 +152,10 @@ search.addEventListener('input',componentIndex);
 
 async function renderView(id: string) {
   const view = data.views.find((v: any) => v.id === id)!;
+  await renderGraphView(view);
+}
+async function renderGraphView(view: any) {
+  const id=view.id;
   activeGraph = view.graph;
   if(selectedId && !activeGraph.nodes.some(n => n.id === selectedId)) clearSelection();
   componentIndex();
@@ -172,7 +193,9 @@ async function renderView(id: string) {
     comparison.annotate(renderedSvg);
     syncSelection(); $('loading').hidden = true;
     $('status').textContent = `${view.label} · ${activeGraph.nodes.length} components · ${activeGraph.edges.length} connections`;
-    ($('mermaid-export') as HTMLAnchorElement).href = `/${id}.mmd`;
+    if(mermaidExportUrl) URL.revokeObjectURL(mermaidExportUrl);
+    mermaidExportUrl=explorer.active ? URL.createObjectURL(new Blob([view.mermaid],{type:'text/plain'})) : undefined;
+    ($('mermaid-export') as HTMLAnchorElement).href = mermaidExportUrl || `/${id}.mmd`;
     ($('mermaid-export') as HTMLAnchorElement).download = `${exportName}-${id}.mmd`;
     $('export').removeAttribute('disabled'); document.documentElement.dataset.rendered = 'true';
   } catch(e) { $('loading').textContent = 'Could not render this view. Reload to try again.'; $('status').textContent = 'Rendering error'; console.error(e); }
@@ -192,7 +215,9 @@ $('export').addEventListener('click',() => {
   const box = clone.getAttribute('viewBox')?.split(/\s+/).map(Number);
   if(box?.length === 4) { clone.setAttribute('width',String(box[2])); clone.setAttribute('height',String(box[3])); }
   const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml'}));
-  const a = document.createElement('a'); a.href = url; a.download = `${exportName}-${viewSelect.value}.svg`; a.click();
+  const a = document.createElement('a'); a.href = url; a.download = `${exportName}-${explorer.active ? 'code' : viewSelect.value}.svg`; a.click();
   setTimeout(() => URL.revokeObjectURL(url),1000);
 });
 await renderView(data.views[0].id);
+await semanticReady;
+if(data.semanticGenerated) await explorer.open();
