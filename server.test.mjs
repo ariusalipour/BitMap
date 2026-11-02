@@ -61,6 +61,9 @@ test('serves scripts, exports and licence notices', async () => {
   assert.equal(js.status, 200);
   assert.equal(js.headers['content-type'], 'text/javascript');
   assert.equal(js.headers['x-content-type-options'], 'nosniff');
+  const bootstrap = await request('/assets/theme-bootstrap.js');
+  assert.equal(bootstrap.status, 200);
+  assert.equal(bootstrap.headers['content-type'], 'text/javascript');
   assert.equal((await request('/architecture.mmd')).status, 200);
   assert.match((await request('/LICENSE-GitDiagram')).body, /Copyright \(c\) 2024 Ahmed Khaleel/);
   assert.match((await request('/LICENSE')).body, /MIT License/);

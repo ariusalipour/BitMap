@@ -97,6 +97,10 @@ await writeFile(path.join(out, 'architecture.mmd'), metadata.mermaid);
 for (const view of views) await writeFile(path.join(out, view.id + '.mmd'), view.mermaid);
 for (const name of ['index.html', 'style.css', 'LICENSE', 'LICENSE-GitDiagram', 'THIRD_PARTY_NOTICES.md']) await cp(path.join(here, name), path.join(out, name));
 await build({
+  entryPoints: [path.join(here, 'theme-bootstrap.ts')], outfile: path.join(out, 'assets/theme-bootstrap.js'),
+  bundle: true, format: 'iife', platform: 'browser', target: 'es2022', minify: true,
+});
+await build({
   entryPoints: [path.join(here, 'viewer.ts')], outdir: path.join(out, 'assets'),
   bundle: true, splitting: true, format: 'esm', platform: 'browser', target: 'es2022',
   plugins: [resolver], minify: true, legalComments: 'linked',

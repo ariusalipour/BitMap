@@ -9,8 +9,59 @@
   --line:#e1e5eb;
   --accent:#2563eb;
   --selection:#edf3ff;
+  --diagram-node:#fff;
+  --diagram-border:#cbd5e1;
+  --diagram-text:#1f2937;
+  --diagram-edge:#64748b;
+  --diagram-cluster:#f8fafc;
+  --diagram-cluster-border:#cbd5e1;
+  --diagram-label-bg:#fbfcfd;
+  --control:#fff;
+  --control-hover:#f0f2f5;
+  --control-active:#e9edf2;
+  --hover:#f1f3f6;
+  --soft-ink:#424b58;
+  --soft-muted:#78818f;
+  --quiet:#84909e;
+  --icon-muted:#738195;
+  --selected-ink:#174fae;
+  --selected-fill:#edf3ff;
+  --border-hover:#cbd2dc;
+  --shadow:0 2px 5px #182b4010;
+  --popover-shadow:0 5px 25px #22334418;
   --font:"Segoe UI",Tahoma,sans-serif;
   --mono:Consolas,"Courier New",monospace;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --surface:#171b22;
+  --subtle:#1d232c;
+  --canvas:#12171e;
+  --ink:#e5eaf1;
+  --muted:#a0aaba;
+  --line:#333c49;
+  --accent:#78a9ff;
+  --selection:#202e45;
+  --diagram-node:#202731;
+  --diagram-border:#718096;
+  --diagram-text:#e5eaf1;
+  --diagram-edge:#9aa8ba;
+  --diagram-cluster:#1b222c;
+  --diagram-cluster-border:#536174;
+  --diagram-label-bg:#12171e;
+  --control:#222a35;
+  --control-hover:#2c3643;
+  --control-active:#364252;
+  --hover:#27313d;
+  --soft-ink:#d1d9e4;
+  --soft-muted:#aab5c4;
+  --quiet:#9aa7b8;
+  --icon-muted:#9aa9bc;
+  --selected-ink:#c4d9ff;
+  --selected-fill:#273a56;
+  --border-hover:#526174;
+  --shadow:0 2px 8px #0006;
+  --popover-shadow:0 8px 28px #0008;
 }
 * {
   box-sizing: border-box;
@@ -50,19 +101,19 @@ button,
   padding: 5px 10px;
   border: 1px solid var(--line);
   border-radius: 5px;
-  background: #fff;
+  background: var(--control);
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
 }
 button:hover,
 .button:hover {
-  background: #f0f2f5;
-  border-color: #cbd2dc;
+  background: var(--control-hover);
+  border-color: var(--border-hover);
 }
 button:active,
 .button:active {
-  background: #e9edf2;
+  background: var(--control-active);
 }
 button:disabled,
 select:disabled {
@@ -89,6 +140,10 @@ button svg,
   width: 18px;
   height: 18px;
 }
+#theme-toggle .theme-sun { display: none; }
+#theme-toggle .theme-moon { display: block; }
+html[data-theme="dark"] #theme-toggle .theme-sun { display: block; }
+html[data-theme="dark"] #theme-toggle .theme-moon { display: none; }
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -168,7 +223,7 @@ select {
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 4px 28px 4px 9px;
-  background: #fff;
+  background: var(--control);
 }
 .toolbar-stats {
   font-size: 11px;
@@ -242,7 +297,7 @@ select {
   width: 15px;
   height: 15px;
   fill: none;
-  stroke: #7a8492;
+  stroke: var(--muted);
   stroke-width: 1.5;
   pointer-events: none;
 }
@@ -252,12 +307,12 @@ input {
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 6px 28px 6px 31px;
-  background: #fff;
+  background: var(--control);
   color: var(--ink);
   font: 12px var(--font);
 }
 input::placeholder {
-  color: #78818f;
+  color: var(--soft-muted);
 }
 .search-wrap kbd {
   position: absolute;
@@ -267,7 +322,7 @@ input::placeholder {
   padding: 0 4px;
   border: 1px solid var(--line);
   border-radius: 3px;
-  color: #8a929e;
+  color: var(--muted);
   pointer-events: none;
 }
 kbd {
@@ -278,7 +333,7 @@ kbd {
   flex: 1;
   padding: 0 8px 16px;
   scrollbar-width: thin;
-  scrollbar-color: #c5cbd4 transparent;
+  scrollbar-color: var(--line) transparent;
 }
 .group-label {
   font-size: 11px;
@@ -303,25 +358,25 @@ kbd {
   border-radius: 4px;
   padding: 7px 8px;
   font: 12px/1.4 var(--font);
-  color: #424b58;
+  color: var(--soft-ink);
 }
 .component-icon {
   display: block;
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
-  color: #738195;
+  color: var(--icon-muted);
   pointer-events: none;
 }
 .component > .component-icon {
   margin-top: 1px;
 }
 .component:hover {
-  background: #f1f3f6;
+  background: var(--hover);
 }
 .component[aria-pressed=true] {
   background: var(--selection);
-  color: #174fae;
+  color: var(--selected-ink);
 }
 .component[aria-pressed=true] .component-icon {
   color: var(--accent);
@@ -377,7 +432,7 @@ kbd {
 #canvas .node.selected path {
   stroke: var(--accent) !important;
   stroke-width: 2px !important;
-  fill: #edf3ff !important;
+  fill: var(--selected-fill) !important;
 }
 #canvas .node:focus-visible {
   outline: none;
@@ -385,13 +440,13 @@ kbd {
 #canvas .node:focus-visible > rect,
 #canvas .node:focus-visible > path,
 #canvas .node:focus-visible > polygon {
-  stroke: #2563eb !important;
+  stroke: var(--accent) !important;
   stroke-width: 2.5px !important;
 }
 #canvas .node:hover > rect,
 #canvas .node:hover > path,
 #canvas .node:hover > polygon {
-  stroke: #64748b !important;
+  stroke: var(--diagram-edge) !important;
 }
 .canvas-tools {
   position: absolute;
@@ -401,10 +456,10 @@ kbd {
   align-items: center;
   gap: 2px;
   padding: 4px;
-  border: 1px solid #dbe0e7;
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: #fff;
-  box-shadow: 0 2px 5px #182b4010;
+  background: var(--surface);
+  box-shadow: var(--shadow);
   user-select: none;
 }
 .canvas-tools button {
@@ -428,7 +483,7 @@ kbd {
   bottom: 27px;
   pointer-events: none;
   font-size: 10px;
-  color: #84909e;
+  color: var(--quiet);
   user-select: none;
 }
 .canvas-hint span {
@@ -472,14 +527,14 @@ kbd {
   width: 32px;
   height: 32px;
   fill: none;
-  stroke: #a3adbb;
+  stroke: var(--muted);
   stroke-width: 1.25;
   margin-bottom: 12px;
 }
 .inspector-empty h3 {
   font-size: 12px;
   font-weight: 600;
-  color: #475261;
+  color: var(--soft-ink);
   margin-bottom: 7px;
 }
 .inspector-empty p {
@@ -489,7 +544,24 @@ kbd {
 .inspector-empty .keyboard-hint {
   font-size: 11px;
   margin-top: 20px;
-  color: #86909e;
+  color: var(--muted);
+}
+
+/* Mermaid diagrams receive their palette from the renderer; these tokens also
+   cover SVG text and edge labels that inherit styles from the generated SVG. */
+#canvas .edgeLabel,
+#canvas .edgeLabel .label,
+#canvas .labelBkg {
+  color: var(--diagram-text);
+}
+#canvas .cluster rect {
+  fill: var(--diagram-cluster);
+  stroke: var(--diagram-cluster-border);
+}
+#canvas .node rect,
+#canvas .node polygon,
+#canvas .node path {
+  stroke: var(--diagram-border);
 }
 .keyboard-hint kbd {
   padding: 2px 4px;
@@ -521,7 +593,7 @@ kbd {
 .description {
   font-size: 12px;
   line-height: 1.7;
-  color: #596575;
+  color: var(--soft-ink);
   margin: 13px 0 20px;
 }
 .source-link {
@@ -536,15 +608,15 @@ kbd {
   background: var(--subtle);
 }
 .source-link:hover {
-  border-color: #bccceb;
-  background: #f0f5ff;
+  border-color: var(--accent);
+  background: var(--selection);
 }
 .relations-heading {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
   font-weight: 600;
-  color: #626f80;
+  color: var(--muted);
   margin: 22px 0 8px;
 }
 .relations-heading span {
@@ -556,7 +628,7 @@ kbd {
   align-items: flex-start;
   gap: 5px;
   padding: 8px 0;
-  border-bottom: 1px solid #edf0f4;
+  border-bottom: 1px solid var(--line);
 }
 .relation-main {
   border: 0;
@@ -594,7 +666,7 @@ kbd {
   font-size: 13px;
   line-height: 1;
   padding: 4px;
-  color: #778395;
+  color: var(--muted);
   text-decoration: none;
 }
 .relation-source:hover {
@@ -651,10 +723,10 @@ kbd {
   bottom: 29px;
   width: 305px;
   padding: 16px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
-  box-shadow: 0 5px 25px #22334418;
+  box-shadow: var(--popover-shadow);
   z-index: 30;
   font-size: 12px;
   line-height: 1.65;
@@ -706,7 +778,7 @@ body[data-inspector=closed][data-navigator=closed] .workspace {
     top: 0;
     bottom: 0;
     width: 290px;
-    box-shadow: -5px 0 20px #22334410;
+    box-shadow: var(--popover-shadow);
   }
   body[data-inspector=open] .inspector {
     display: flex;
@@ -792,7 +864,7 @@ body[data-inspector=closed][data-navigator=closed] .workspace {
     bottom: 0;
     width: 248px;
     z-index: 25;
-    box-shadow: 5px 0 20px #22334412;
+    box-shadow: var(--popover-shadow);
   }
   body[data-navigator=open] .navigator {
     display: flex;

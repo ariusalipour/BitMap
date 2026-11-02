@@ -6,6 +6,7 @@ import { sanitizeMermaidSourceForRender } from './vendor/gitdiagram/src/features
 import { createViewport } from './vendor/gitdiagram/src/mcp-app/viewport';
 import { installDiagramInteractions } from './diagram-interactions';
 import { getComponentAppearance } from './component-icons';
+import { createThemeController, type Theme } from './theme';
 
 type Node = { id: string; label: string; type: string; description: string | null; groupId: string | null; path: string | null; shape?: string | null };
 type Edge = { from: string; to: string; label: string | null; evidencePath?: string | null };
@@ -15,6 +16,42 @@ const emptyInspector = $('detail').innerHTML;
 let viewport: ReturnType<typeof createViewport> | undefined;
 let renderedSvg: SVGSVGElement | undefined;
 let selectedId: string | null = null;
+function diagramPalette() {
+  const style = getComputedStyle(document.documentElement);
+  const value = (name: string) => style.getPropertyValue(name).trim();
+  return {
+    background: value('--canvas'), node: value('--diagram-node'), border: value('--diagram-border'),
+    text: value('--diagram-text'), edge: value('--diagram-edge'), cluster: value('--diagram-cluster'),
+    clusterBorder: value('--diagram-cluster-border'), label: value('--diagram-label-bg'),
+  };
+}
+function applyDiagramTheme(svg: SVGSVGElement) {
+  const p = diagramPalette();
+  let style = svg.querySelector<SVGStyleElement>('[data-bitmap-theme]');
+  if (!style) { style = document.createElementNS('http://www.w3.org/2000/svg', 'style'); style.setAttribute('data-bitmap-theme', ''); svg.append(style); }
+  // Literal colours keep exported SVGs independent of the application stylesheet.
+  style.textContent = `
+    #local-architecture { background:${p.background}; color:${p.text}; }
+    #local-architecture .node rect, #local-architecture .node polygon, #local-architecture .node path,
+    #local-architecture .node circle, #local-architecture .node ellipse { fill:${p.node}!important; stroke:${p.border}!important; }
+    #local-architecture text, #local-architecture tspan { fill:${p.text}!important; color:${p.text}!important; }
+    #local-architecture .cluster rect { fill:${p.cluster}!important; stroke:${p.clusterBorder}!important; }
+    #local-architecture .flowchart-link, #local-architecture .edgePaths path { stroke:${p.edge}!important; }
+    #local-architecture marker path { fill:${p.edge}!important; stroke:${p.edge}!important; }
+    #local-architecture .edgeLabel rect, #local-architecture .labelBkg { fill:${p.label}!important; }
+  `;
+}
+function updateTheme(theme: Theme) {
+  const label = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  $('theme-toggle').setAttribute('aria-label', label);
+  $('theme-toggle').setAttribute('aria-pressed', String(theme === 'dark'));
+  $('theme-toggle').title = label;
+  if (renderedSvg) applyDiagramTheme(renderedSvg);
+}
+let themeStorage: Storage | undefined;
+try { themeStorage = window.localStorage; } catch { /* Storage can be disabled. */ }
+const theme = createThemeController(document.documentElement, themeStorage, window.matchMedia('(prefers-color-scheme: dark)'), updateTheme);
+$('theme-toggle').addEventListener('click', () => theme.toggle());
 const data = await fetch('/diagram.json').then(r => { if (!r.ok) throw Error('Cannot load local map'); return r.json(); });
 document.title = data.title === 'BitMap' ? 'BitMap — Code architecture' : `${data.title} — BitMap`;
 $('project-title').textContent = data.title;
@@ -90,11 +127,12 @@ async function renderView(id: string) {
   $('loading').hidden = false; viewSelect.disabled = true; renderedSvg = undefined; $('export').setAttribute('disabled','');
   viewport?.destroy(); viewport = undefined;
   try {
-    const config = buildMermaidConfig({isDark:false,backgroundColor:'#fbfcfd'});
+    const palette = diagramPalette();
+    const config = buildMermaidConfig({isDark:theme.current === 'dark',backgroundColor:palette.background});
     mermaid.initialize({...config,fontFamily:"'Segoe UI', sans-serif",fontSize:14,
-      themeVariables:{...config.themeVariables,lineColor:'#8995a5',clusterBkg:'#f6f8fa',clusterBorder:'#dce2e9',fontSize:'14px',edgeLabelBackground:'#fbfcfd'},
+      themeVariables:{...config.themeVariables,lineColor:palette.edge,clusterBkg:palette.cluster,clusterBorder:palette.clusterBorder,fontSize:'14px',edgeLabelBackground:palette.label},
       flowchart:{...config.flowchart,nodeSpacing:36,rankSpacing:48}});
-    const source = sanitizeMermaidSourceForRender(view.mermaid).replace(/^classDef (tone\w+) .*$/gm,'classDef $1 fill:#ffffff,stroke:#9aa7b6,stroke-width:1px,color:#253144');
+    const source = sanitizeMermaidSourceForRender(view.mermaid).replace(/^classDef (tone\w+) .*$/gm,`classDef $1 fill:${palette.node},stroke:${palette.border},stroke-width:1px,color:${palette.text}`);
     const result = await mermaid.render('local-architecture',source);
     $('canvas').innerHTML = DOMPurify.sanitize(result.svg,MERMAID_SVG_SANITIZE_OPTIONS);
     renderedSvg = $('canvas').querySelector('svg')!;
@@ -106,6 +144,7 @@ async function renderView(id: string) {
         if(shape.style.getPropertyPriority(property) === 'important') shape.style.removeProperty(property);
       }
     }
+    applyDiagramTheme(renderedSvg);
     viewport = createViewport($('stage'),$('canvas')); viewport.setTouchPanning(true); viewport.fit('whole');
     for(const node of renderedSvg.querySelectorAll<SVGGElement>('.node')) {
       const component = graph.nodes.find(n => node.id.includes(`flowchart-node_${n.id}-`));
