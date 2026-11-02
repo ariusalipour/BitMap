@@ -16,17 +16,17 @@ Use a fork for your changes:
 4. Run the checks listed below and include their results in your pull request.
 5. Open a pull request from your fork and respond to review feedback.
 
-The repository owner, [@ariusalipour](https://github.com/ariusalipour), is the maintainer whose approval is required before a community pull request can be merged. Reviews and approvals from other contributors are welcome and helpful, but do not replace maintainer approval. The owner merges approved changes to `main` after the required checks pass.
+The repository owner, [@ariusalipour](https://github.com/ariusalipour), is the maintainer whose approval is required before a community pull request can be merged. Reviews and approvals from other contributors are welcome and helpful, but do not replace maintainer approval. Only the owner can merge changes into `main`. Contributors should ensure the checks pass before requesting review.
 
-For pull requests authored by the owner, GitHub does not allow the author to approve their own pull request. The owner may merge their own change after the required checks pass, using the repository's limited owner bypass where needed.
+The repository owner, `@ariusalipour`, has an explicit owner-only override for review, update, and CI requirements. The owner can merge their own or community pull requests and can push directly to `main`. GitHub does not allow authors to approve their own pull requests, so owner-authored changes do not require self-approval. CI still runs; the owner can override its merge gate when necessary.
 
-The `main` branch requires pull requests. Its code-owner review rule names only `@ariusalipour`, and new commits dismiss stale approvals. Only that account may update `main` through a pull request. Direct pushes, force pushes, and deletion of `main` are blocked. A separate rule requires the Windows and Linux GitHub Actions checks on an up-to-date branch, with no bypass actors, including for owner-authored changes.
+Everyone else must contribute through pull requests and cannot push or merge into upstream `main`, even after submitting an approval. Community changes require the owner's acceptance; other review opinions are advisory. New commits dismiss stale approvals under the review policy.
 
-The owner-only review bypass is limited to pull requests; it does not permit direct pushes or bypass the separate CI rule. Other contributors can still submit review opinions on GitHub, but those opinions cannot satisfy the required owner approval or give permission to merge.
+A separate history-protection ruleset has no bypass actors: force pushes and deletion of `main` remain blocked, including for the owner.
 
 The applied ruleset definitions are recorded under [`.github/rulesets/`](.github/rulesets/). GitHub does not apply these JSON files automatically: the owner must update the live repository settings when changing the policy. Forks have their own permissions and rules; this policy governs the upstream BitMap repository.
 
-Live settings: [owner-controlled main](https://github.com/ariusalipour/BitMap/rules/26380713) and [required checks and history](https://github.com/ariusalipour/BitMap/rules/26380715).
+Live settings: [owner-controlled main](https://github.com/ariusalipour/BitMap/rules/26380713) and [CI with owner override](https://github.com/ariusalipour/BitMap/rules/26380715).
 
 ## Checks
 
