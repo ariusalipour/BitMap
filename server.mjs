@@ -10,8 +10,9 @@ function within(base, target) {
   const relative = path.relative(base, target);
   return relative && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
 }
-export async function createAppServer(outputDirectory = path.join(here, 'dist')) {
+export async function createAppServer(outputDirectory = path.join(here, 'dist'), runtimeDirectory = outputDirectory) {
   const out = await realpath(outputDirectory);
+  const runtime = await realpath(runtimeDirectory);
   const data = JSON.parse(await readFile(path.join(out, 'diagram.json'), 'utf8'));
   const root = await realpath(data.root);
   const allowed = new Set(data.graph.nodes.map(n => n.path).concat(data.graph.edges.map(e => e.evidencePath)).filter(Boolean));
@@ -61,10 +62,15 @@ export async function createAppServer(outputDirectory = path.join(here, 'dist'))
         const content = info.isDirectory() ? 'Directory: ' + relative + '\n\n' + (await readdir(resolved)).sort().join('\n') : await readFile(resolved);
         res.end(req.method === 'HEAD' ? undefined : content); return;
       }
-      const requested = path.resolve(out, '.' + decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname));
-      if (!within(out, requested) || path.basename(requested) === 'compiler.mjs') throw Error('Outside public assets');
+      const publicPath = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
+      const exports = new Set(['/diagram.json', '/architecture.mmd', ...data.views.map(view => '/' + view.id + '.mmd')]);
+      const staticFiles = new Set(['/index.html', '/style.css', '/LICENSE', '/LICENSE-GitDiagram', '/THIRD_PARTY_NOTICES.md']);
+      const base = exports.has(publicPath) ? out : runtime;
+      if (!exports.has(publicPath) && !staticFiles.has(publicPath) && !/^\/assets\/[a-zA-Z0-9_.-]+\.(js|css|txt)$/.test(publicPath)) throw Error('Outside public assets');
+      const requested = path.resolve(base, '.' + publicPath);
+      if (!within(base, requested)) throw Error('Outside public assets');
       const resolved = await realpath(requested);
-      if (!within(out, resolved)) throw Error('Outside public assets');
+      if (!within(base, resolved)) throw Error('Outside public assets');
       res.setHeader('Content-Type', mime[path.extname(resolved)] || 'text/plain; charset=utf-8');
       res.end(req.method === 'HEAD' ? undefined : await readFile(resolved));
     } catch { res.writeHead(404); res.end('Not found'); }
