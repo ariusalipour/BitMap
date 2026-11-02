@@ -7,6 +7,7 @@ import { createViewport } from './vendor/gitdiagram/src/mcp-app/viewport';
 import { installDiagramInteractions } from './diagram-interactions';
 import { getComponentAppearance } from './component-icons';
 import { createThemeController, type Theme } from './theme';
+import { createComparisonController } from './comparison-ui';
 
 type Node = { id: string; label: string; type: string; description: string | null; groupId: string | null; path: string | null; shape?: string | null };
 type Edge = { from: string; to: string; label: string | null; evidencePath?: string | null };
@@ -23,6 +24,7 @@ function diagramPalette() {
     background: value('--canvas'), node: value('--diagram-node'), border: value('--diagram-border'),
     text: value('--diagram-text'), edge: value('--diagram-edge'), cluster: value('--diagram-cluster'),
     clusterBorder: value('--diagram-cluster-border'), label: value('--diagram-label-bg'),
+    changed: value('--change-border'), changedFill: value('--change-fill'), selected: value('--accent'), selectedFill: value('--selected-fill'),
   };
 }
 function applyDiagramTheme(svg: SVGSVGElement) {
@@ -39,6 +41,13 @@ function applyDiagramTheme(svg: SVGSVGElement) {
     #local-architecture .flowchart-link, #local-architecture .edgePaths path { stroke:${p.edge}!important; }
     #local-architecture marker path { fill:${p.edge}!important; stroke:${p.edge}!important; }
     #local-architecture .edgeLabel rect, #local-architecture .labelBkg { fill:${p.label}!important; }
+    #local-architecture .node.change-source :is(rect,polygon,path,circle,ellipse),
+    #local-architecture .node.change-evidence :is(rect,polygon,path,circle,ellipse) { fill:${p.changedFill}!important; stroke:${p.changed}!important; stroke-width:2.5px!important; }
+    #local-architecture .node.change-evidence :is(rect,polygon,path,circle,ellipse) { stroke-dasharray:5 3!important; }
+    #local-architecture .node [data-change-label] { fill:${p.changed}!important; }
+    #local-architecture .node.selected :is(rect,polygon,path,circle,ellipse) { stroke:${p.selected}!important; stroke-width:3px!important; }
+    #local-architecture .node.selected:not(.change-source):not(.change-evidence) :is(rect,polygon,path,circle,ellipse) { fill:${p.selectedFill}!important; }
+    #local-architecture .node:focus-visible :is(rect,polygon,path,circle,ellipse) { stroke:${p.selected}!important; stroke-width:3px!important; }
   `;
 }
 function updateTheme(theme: Theme) {
@@ -64,6 +73,11 @@ const appearances = new Map(graph.nodes.map(n => [n.id,getComponentAppearance(n)
 const search = $('search') as HTMLInputElement;
 const viewSelect = $('view') as HTMLSelectElement;
 installDiagramInteractions($('stage'));
+const comparison = createComparisonController(() => {
+  comparison.annotate(renderedSvg);
+  const detail = $('detail').querySelector('[data-comparison-detail]');
+  if (detail) detail.innerHTML = comparison.inspector(selectedId);
+});
 
 function panel(name: 'navigator' | 'inspector', open: boolean) {
   document.body.dataset[name] = open ? 'open' : 'closed';
@@ -99,7 +113,7 @@ async function select(id: string) {
   if(innerWidth <= 700) panel('navigator',false);
   const incoming = graph.edges.filter(e => e.to === id), outgoing = graph.edges.filter(e => e.from === id);
   const appearance = appearances.get(id)!;
-  $('detail').innerHTML = `<p class="component-type" title="${esc(appearance.label)}">${appearance.svg}<span>${esc(node.type)}</span></p><h3 class="detail-title">${esc(node.label)}</h3>${groups.has(node.groupId!) ? `<p class="component-area">${esc(groups.get(node.groupId!)!)}</p>` : ''}${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}<p class="description">${esc(node.description || node.type)}</p>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<button class="clear-selection">Clear selection</button>`;
+  $('detail').innerHTML = `<p class="component-type" title="${esc(appearance.label)}">${appearance.svg}<span>${esc(node.type)}</span></p><h3 class="detail-title">${esc(node.label)}</h3>${groups.has(node.groupId!) ? `<p class="component-area">${esc(groups.get(node.groupId!)!)}</p>` : ''}${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}<p class="description">${esc(node.description || node.type)}</p>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<div data-comparison-detail>${comparison.inspector(id)}</div><button class="clear-selection">Clear selection</button>`;
   for(const button of $('detail').querySelectorAll<HTMLButtonElement>('[data-select]')) button.addEventListener('click',() => select(button.dataset.select!));
   $('detail').querySelector('.clear-selection')!.addEventListener('click',clearSelection);
 }
@@ -115,6 +129,7 @@ function componentIndex() {
     }).join('')}` : '';
   }).join('') || '<p class="empty">No matching components.<br>Try a different name or source path.</p>';
   for(const button of document.querySelectorAll<HTMLButtonElement>('.component')) button.addEventListener('click',() => select(button.dataset.id!));
+  comparison.annotate(renderedSvg);
 }
 search.addEventListener('input',componentIndex);
 
@@ -139,7 +154,7 @@ async function renderView(id: string) {
     for(const anchor of renderedSvg.querySelectorAll('a')) { anchor.removeAttribute('href'); anchor.removeAttribute('xlink:href'); }
     // Mermaid duplicates class colours as inline !important styles; let the
     // workspace's deliberate selected/focus state take precedence instead.
-    for(const shape of renderedSvg.querySelectorAll<SVGElement>('.node rect,.node path,.node polygon')) {
+    for(const shape of renderedSvg.querySelectorAll<SVGElement>('.node rect,.node path,.node polygon,.node circle,.node ellipse')) {
       for(const property of ['fill','stroke','stroke-width']) {
         if(shape.style.getPropertyPriority(property) === 'important') shape.style.removeProperty(property);
       }
@@ -149,10 +164,12 @@ async function renderView(id: string) {
     for(const node of renderedSvg.querySelectorAll<SVGGElement>('.node')) {
       const component = graph.nodes.find(n => node.id.includes(`flowchart-node_${n.id}-`));
       if(!component) continue;
+      node.dataset.componentId = component.id; node.dataset.componentLabel = component.label;
       node.setAttribute('tabindex','0'); node.setAttribute('role','button'); node.setAttribute('aria-label',component.label);
       node.addEventListener('click',e => { e.stopPropagation(); select(component.id); });
       node.addEventListener('keydown',e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); select(component.id); } });
     }
+    comparison.annotate(renderedSvg);
     syncSelection(); $('loading').hidden = true;
     $('status').textContent = `${view.label} · ${activeGraph.nodes.length} components · ${activeGraph.edges.length} connections`;
     ($('mermaid-export') as HTMLAnchorElement).href = `/${id}.mmd`;

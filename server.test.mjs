@@ -89,3 +89,19 @@ test('MCP rejects cross-origin requests and malformed input', async () => {
   assert.equal(origin.status, 403);
   assert.equal((await request('/mcp', { method: 'POST', body: null })).status, 400);
 });
+
+test('branch comparison uses the configured repository and restricts base options', async () => {
+  const result = await request('/comparison?base=auto');
+  assert.equal(result.status, 200);
+  assert.match(result.headers['content-type'], /application\/json/);
+  const comparison = JSON.parse(result.body);
+  assert.equal(typeof comparison.available, 'boolean');
+  if (comparison.available) {
+    assert.equal(comparison.scope, 'committed');
+    assert.ok(Array.isArray(comparison.files));
+    assert.ok(comparison.nodes.every(node => node.reasons.every(reason => ['source', 'evidence'].includes(reason.kind))));
+  }
+  for (const base of ['--output=bad', 'HEAD', 'main&base=master', '..%2Fmain']) assert.equal((await request('/comparison?base='+base)).status,400);
+  assert.equal((await request('/comparison',{method:'POST'})).status,403);
+  assert.equal((await request('/comparison',{headers:{Origin:'https://untrusted.example'}})).status,403);
+});
