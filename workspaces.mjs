@@ -1,4 +1,4 @@
-// Durable authored inputs live in application data; generated output lives in cache.
+// Authored inputs travel with the repository; generated output lives in external cache.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -15,13 +15,9 @@ export function workspaceDirectories(env = process.env, platform = process.platf
     : platform === 'darwin'
       ? path.join(home, 'Library', 'Caches', 'BitMap')
       : path.join(env.XDG_CACHE_HOME || path.join(home, '.cache'), 'bitmap');
-  return {
-    data: path.resolve(env.BITMAP_DATA_DIR || dataDefault),
-    cache: path.resolve(env.BITMAP_CACHE_DIR || cacheDefault),
-  };
+  return { data: path.resolve(env.BITMAP_DATA_DIR || dataDefault), cache: path.resolve(env.BITMAP_CACHE_DIR || cacheDefault) };
 }
 
-// Resolve existing ancestors too, so a symlink cannot route storage into the source.
 async function resolvedDestination(destination) {
   let cursor = path.resolve(destination);
   const tail = [];
@@ -42,6 +38,19 @@ function contained(root, candidate) {
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
+async function exists(file) {
+  try { await fs.access(file); return true; }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+}
+
+async function rejectLink(file, directory = false) {
+  try {
+    const stat = await fs.lstat(file);
+    if (stat.isSymbolicLink()) throw new Error(`BitMap repository storage must not use symbolic links: ${file}`);
+    if (directory ? !stat.isDirectory() : !stat.isFile()) throw new Error(`Invalid BitMap ${directory ? 'directory' : 'file'}: ${file}`);
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
+
 async function readJson(file, label) {
   try { return JSON.parse(await fs.readFile(file, 'utf8')); }
   catch (error) { throw new Error(`Cannot read ${label} at ${file}: ${error.message}`, { cause: error }); }
@@ -54,52 +63,49 @@ export async function prepareWorkspace({ root, graph, views, title, validate } =
   const identity = process.platform === 'win32' ? canonicalRoot.toLowerCase() : canonicalRoot;
   const id = createHash('sha256').update(identity).digest('hex');
   const directories = workspaceDirectories();
-  const data = await resolvedDestination(directories.data);
   const cache = await resolvedDestination(directories.cache);
-  if (contained(cache, data)) {
-    throw new Error('Durable BitMap data must be outside the cache directory so clearing cache cannot remove authored inputs.');
-  }
-  for (const location of [data, cache]) {
-    if (contained(canonicalRoot, location)) {
-      throw new Error('BitMap storage must be outside the repository. Change BITMAP_DATA_DIR or BITMAP_CACHE_DIR.');
-    }
-  }
-  const directory = path.join(data, 'workspaces', id);
   const out = path.join(cache, 'workspaces', id);
-  // Check workspace paths as well: existing workspace folders may themselves be links.
-  for (const location of [directory, out, ...['config.json', 'graph.json', 'views.json'].map(name => path.join(directory, name))]) {
-    if (contained(canonicalRoot, await resolvedDestination(location))) {
-      throw new Error('BitMap workspace storage resolves inside the repository. Choose external storage.');
-    }
+  if (contained(canonicalRoot, cache) || contained(canonicalRoot, await resolvedDestination(out))) {
+    throw new Error('BitMap generated cache must be outside the repository. Change BITMAP_CACHE_DIR.');
   }
+  const directory = path.join(canonicalRoot, 'bitmap');
   const configFile = path.join(directory, 'config.json');
-  let previous;
-  try { previous = JSON.parse(await fs.readFile(configFile, 'utf8')); }
-  catch (error) { if (error.code !== 'ENOENT') throw new Error(`Cannot read workspace configuration: ${error.message}`, { cause: error }); }
-  if (previous && previous.root !== canonicalRoot && !(process.platform === 'win32' && previous.root.toLowerCase() === identity)) {
-    throw new Error('Workspace identity does not match its repository.');
-  }
-  if (!graph && !previous) {
-    throw new Error('This repository has no saved BitMap graph. Open it with --graph <graph.json> first; BitMap does not automatically analyse source code.');
-  }
   const graphFile = path.join(directory, 'graph.json');
   const viewsFile = path.join(directory, 'views.json');
-  const graphValue = await readJson(graph ? path.resolve(graph) : graphFile, 'graph JSON');
-  const hasViews = Boolean(views || previous?.hasViews);
-  const viewsValue = hasViews ? await readJson(views ? path.resolve(views) : viewsFile, 'views JSON') : undefined;
+  await rejectLink(directory, true);
+  for (const file of [configFile, graphFile, viewsFile]) await rejectLink(file);
+  const localGraph = await exists(graphFile);
+  let previous = await exists(configFile) ? await readJson(configFile, 'workspace configuration') : undefined;
+  // Earlier versions kept authored inputs in app data. Import only when no local
+  // graph exists, and leave the legacy directory intact as a migration backup.
+  const legacyDirectory = path.join(directories.data, 'workspaces', id);
+  let legacy = false;
+  if (!graph && !localGraph && await exists(path.join(legacyDirectory, 'graph.json'))) {
+    const legacyConfigFile = path.join(legacyDirectory, 'config.json');
+    const legacyConfig = await exists(legacyConfigFile) ? await readJson(legacyConfigFile, 'legacy workspace configuration') : undefined;
+    if (legacyConfig?.root && (process.platform === 'win32' ? legacyConfig.root.toLowerCase() : legacyConfig.root) !== identity) {
+      throw new Error('Legacy workspace identity does not match its repository.');
+    }
+    previous ??= legacyConfig;
+    legacy = true;
+  }
+  if (!graph && !localGraph && !legacy) {
+    throw new Error('This repository has no bitmap/graph.json. Open it with --graph <graph.json> first; BitMap does not automatically analyse source code.');
+  }
+  const graphInput = graph ? path.resolve(graph) : localGraph ? graphFile : path.join(legacyDirectory, 'graph.json');
+  const viewsInput = views ? path.resolve(views) : await exists(viewsFile) ? viewsFile
+    : legacy && previous?.hasViews ? path.join(legacyDirectory, 'views.json') : undefined;
+  const graphValue = await readJson(graphInput, 'graph JSON');
+  const viewsValue = viewsInput ? await readJson(viewsInput, 'views JSON') : undefined;
   const workspaceTitle = title || previous?.title || path.basename(canonicalRoot);
   if (typeof workspaceTitle !== 'string' || !workspaceTitle.trim()) throw new Error('The workspace title must be nonempty text.');
   await fs.mkdir(out, { recursive: true });
-  // Compilation may reject a structurally invalid graph or an unsafe source path.
-  // Keep the previous authored inputs intact until the candidate has passed it.
-  if (validate) {
-    await validate({ id, root: canonicalRoot, title: workspaceTitle,
-      graph: graph ? path.resolve(graph) : graphFile,
-      views: hasViews ? (views ? path.resolve(views) : viewsFile) : undefined, out });
-  }
+  // Validation completes before authored inputs or portable settings are replaced.
+  if (validate) await validate({ id, root: canonicalRoot, title: workspaceTitle, graph: graphInput, views: viewsInput, out });
   await fs.mkdir(directory, { recursive: true });
-  if (graph) await fs.writeFile(graphFile, `${JSON.stringify(graphValue, null, 2)}\n`);
-  if (views) await fs.writeFile(viewsFile, `${JSON.stringify(viewsValue, null, 2)}\n`);
-  await fs.writeFile(configFile, `${JSON.stringify({ version: 1, root: canonicalRoot, title: workspaceTitle, hasViews }, null, 2)}\n`);
-  return { id, root: canonicalRoot, title: workspaceTitle, graph: graphFile, views: hasViews ? viewsFile : undefined, out };
+  if (graphInput !== graphFile) await fs.writeFile(graphFile, `${JSON.stringify(graphValue, null, 2)}\n`);
+  if (viewsInput && viewsInput !== viewsFile) await fs.writeFile(viewsFile, `${JSON.stringify(viewsValue, null, 2)}\n`);
+  const portableConfig = `${JSON.stringify({ version: 1, title: workspaceTitle, hasViews: Boolean(viewsInput) }, null, 2)}\n`;
+  if (!await exists(configFile) || await fs.readFile(configFile, 'utf8') !== portableConfig) await fs.writeFile(configFile, portableConfig);
+  return { id, root: canonicalRoot, title: workspaceTitle, graph: graphFile, views: viewsInput ? viewsFile : undefined, out };
 }

@@ -45,13 +45,23 @@ On Windows, quote paths that contain spaces, for example `node "C:\Tools\BitMap\
 
 Open the printed loopback URL in your browser. The default port is 4318; use `--port 4319` when that port is occupied. The command runs in the foreground; press Ctrl+C to stop its server. Add `--no-serve` to save and validate the workspace and generate its snapshot without starting a server.
 
-The first open copies your authored graph, optional views, and title into BitMap's application data. Subsequent opens reuse those saved inputs:
+The first open validates and copies your authored graph into the analysed repository's `bitmap/` folder. Optional views and the title are saved there too. If the repository already contains `bitmap/graph.json`, no `--graph` argument is needed:
 
 ```sh
 node /path/to/BitMap/cli.mjs open /path/to/repo
 ```
 
-The original input files are no longer needed to reopen that workspace. To update the saved graph or views, open again with `--graph` or `--views`; omitted views and title retain their saved values. Paths supplied to commands are resolved from the current working directory.
+The folder is intended to be committed alongside the source so collaborators receive the same architecture description:
+
+```text
+my-project/
+  bitmap/
+    graph.json     # Authored architecture graph
+    views.json     # Optional named views
+    config.json    # Portable display settings, including the title
+```
+
+Edit those files directly, or open again with `--graph` or `--views` to import replacements. Imports are validated before saved inputs are replaced; omitted views and title retain their saved values. The original imported files are no longer needed. Paths supplied to commands are resolved from the current working directory.
 
 When running from the BitMap checkout, the equivalent shortcut is:
 
@@ -61,7 +71,7 @@ npm run open -- /path/to/repo --graph /path/to/graph.json
 
 You can optionally run `npm link` in the BitMap checkout to create a local `bitmap` command, then use `bitmap open /path/to/repo`. This links your local checkout; BitMap is not currently published to the npm registry.
 
-The opener reads the selected repository without installing packages, adding configuration or hooks, or writing generated files there. It does not automatically analyze source code: an initial `--graph` is required. Each open rebuilds the snapshot from the saved graph, validates its referenced paths, and computes reviewed-file hashes. There is no background watcher or incremental source parser.
+The opener writes only the small authored graph, views, and settings files under `bitmap/` in the selected repository. It does not install packages, add hooks, or copy generated snapshots or viewer bundles into that checkout. It does not automatically analyze source code: provide an initial `--graph` or an existing `bitmap/graph.json`. Each open rebuilds the snapshot from the saved graph, validates its referenced paths, and computes reviewed-file hashes. There is no background watcher or incremental source parser.
 
 The graph format follows the vendored GitDiagram schema and currently permits up to 10 groups, 34 nodes, and 48 edges. Invalid paths or graph structure stop snapshot generation.
 
@@ -85,23 +95,25 @@ The complete graph view is always included. Without a views file, an overview co
 
 ### Storage and reuse
 
-Each repository has a workspace ID derived from its canonical absolute path. Repositories with the same directory name at different locations have separate workspaces; reopening through a symlink resolves to the same source directory. Moving a checkout to a different canonical path creates a separate workspace, which needs its graph supplied again.
+Authored inputs live in the repository's `bitmap/` folder. Graph paths are relative to the repository root, and `config.json` contains no absolute checkout path. Moving or cloning the repository carries those inputs with it; reopen the new checkout to regenerate its snapshot.
 
-BitMap keeps durable inputs and disposable generated output separately:
+Generated output stays in an external cache:
 
-| Platform | Application data | Generated cache |
-| --- | --- | --- |
-| Windows | `%LOCALAPPDATA%\BitMap` | `%LOCALAPPDATA%\BitMap\Cache` |
-| macOS | `~/Library/Application Support/BitMap` | `~/Library/Caches/BitMap` |
-| Linux | `${XDG_DATA_HOME:-~/.local/share}/bitmap` | `${XDG_CACHE_HOME:-~/.cache}/bitmap` |
+| Platform | Generated cache |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\BitMap\Cache` |
+| macOS | `~/Library/Caches/BitMap` |
+| Linux | `${XDG_CACHE_HOME:-~/.cache}/bitmap` |
 
-The Windows application-data fallback is `~/AppData/Local/BitMap` when `LOCALAPPDATA` is unset. Under application data, `workspaces/<id>/` contains the saved `graph.json`, optional `views.json`, and `config.json`. Under the cache, `workspaces/<id>/` contains `diagram.json` and Mermaid exports. Deleting generated cache does not remove the authored inputs; the next open regenerates it. Keep the application data if you want to retain those inputs and workspace settings.
+The Windows fallback is `~/AppData/Local/BitMap/Cache` when `LOCALAPPDATA` is unset. Each repository has a cache workspace ID derived from its canonical absolute path. Repositories with the same directory name at different locations have separate caches; reopening through a symlink resolves to the same source directory. Under the cache, `workspaces/<id>/` contains `diagram.json` and Mermaid exports. Deleting generated cache does not remove authored inputs; the next open regenerates it.
 
-Set `BITMAP_DATA_DIR` and/or `BITMAP_CACHE_DIR` to choose different storage roots. Continue using the same overrides on future opens to find the same workspaces. Overrides do not migrate existing storage. Storage inside the selected repository is rejected, including paths that resolve there through symlinks. The durable data directory must also remain outside the cache directory so clearing the cache cannot erase saved inputs.
+Set `BITMAP_CACHE_DIR` to choose a different cache root. Cache storage inside the selected repository is rejected, including paths that resolve there through symlinks. Generated snapshots must remain outside the authored `bitmap/` folder.
+
+For workspaces created by the earlier external-storage workflow, the next open migrates their graph, optional views, and title into `bitmap/` if there is no repository-local graph. Existing local inputs take precedence, and the old external files are retained as backups. `BITMAP_DATA_DIR` is now used only to locate those legacy inputs during migration. Its defaults are `%LOCALAPPDATA%\BitMap` on Windows, `~/Library/Application Support/BitMap` on macOS, and `${XDG_DATA_HOME:-~/.local/share}/bitmap` on Linux. If you previously used a custom data root, keep that override for the migration open.
 
 The compiler and browser assets are shared by all workspaces in the BitMap checkout's `dist/runtime/`. A fingerprint of their build inputs lets unchanged assets be reused. Opening or refreshing another repository does not duplicate the viewer or Mermaid bundles in its workspace cache. Changes to the runtime's source or build inputs trigger a rebuild.
 
-Saved inputs and generated snapshots can include private architecture descriptions, absolute source locations, repository commit information, and hashes of reviewed files. Keep their storage private and review exports before sharing them.
+Review `bitmap/` before committing it: authored graphs and views can contain private architecture descriptions. Generated snapshots also contain absolute source locations, repository commit information, and hashes of reviewed files. Keep caches private and review exports before sharing them.
 
 ### Explicit builds and exports
 

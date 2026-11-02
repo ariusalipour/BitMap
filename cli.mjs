@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Open an authored repository map without installing anything in that checkout.
+// Open repository-owned bitmap inputs with shared tooling and an external cache.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
@@ -50,7 +50,7 @@ if (process.argv[1] && await realpath(path.resolve(process.argv[1])).catch(() =>
     if (options.help) console.log(usage);
     else {
       const { workspace, server } = await openRepository(options);
-      console.log(`Workspace: ${workspace.id}\nSnapshot: ${workspace.out}`);
+      console.log(`Graph: ${workspace.graph}\nWorkspace: ${workspace.id}\nSnapshot: ${workspace.out}`);
       if (server) {
         console.log(`BitMap: http://127.0.0.1:${server.address().port}\nPress Ctrl+C to stop.`);
         for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close());

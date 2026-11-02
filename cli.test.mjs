@@ -1,7 +1,7 @@
 // Exercise the opener's public arguments and separation of private data from assets.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, realpath, readdir, cp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
@@ -23,6 +23,10 @@ test('opener compiles saved inputs and rejects invalid replacements without losi
     await mkdir(root);
     await writeFile(graph,JSON.stringify({groups:[],nodes:[{id:'app',label:'App',type:'Module',description:null,groupId:null,path:null,shape:'box'}],edges:[]}));
     const first = await openRepository({root,graph,noServe:true});
+    assert.equal(first.workspace.graph,path.join(await realpath(root),'bitmap','graph.json'));
+    assert.deepEqual(await readdir(root),['bitmap']);
+    assert.deepEqual((await readdir(path.join(root,'bitmap'))).sort(),['config.json','graph.json']);
+    assert.equal(Object.hasOwn(JSON.parse(await readFile(path.join(root,'bitmap','config.json'),'utf8')),'root'),false);
     const saved = await readFile(first.workspace.graph,'utf8');
     assert.equal(JSON.parse(await readFile(path.join(first.workspace.out,'diagram.json'),'utf8')).graph.nodes[0].id,'app');
     await writeFile(graph,'{}');
@@ -30,6 +34,12 @@ test('opener compiles saved inputs and rejects invalid replacements without losi
     assert.equal(await readFile(first.workspace.graph,'utf8'),saved);
     const reopened = await openRepository({root,noServe:true});
     assert.equal(reopened.workspace.id,first.workspace.id);
+    const clone = path.join(temp,'clone');
+    await mkdir(clone);
+    await cp(path.join(root,'bitmap'),path.join(clone,'bitmap'),{recursive:true});
+    const portable = await openRepository({root:clone,noServe:true});
+    assert.notEqual(portable.workspace.id,first.workspace.id);
+    assert.equal(JSON.parse(await readFile(path.join(portable.workspace.out,'diagram.json'),'utf8')).graph.nodes[0].id,'app');
   } finally {
     for (const [i,key] of ['BITMAP_DATA_DIR','BITMAP_CACHE_DIR'].entries()) {
       if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i];
