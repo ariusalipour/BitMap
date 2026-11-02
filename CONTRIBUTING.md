@@ -1,0 +1,51 @@
+# Contributing to BitMap
+
+Thanks for helping improve BitMap. Contributions are welcome through GitHub issues and pull requests.
+
+## Issues
+
+Anyone can open an issue to report a problem, suggest an improvement, or ask a question. Include clear steps to reproduce problems, expected and actual behavior, and relevant environment details. Please do not include secrets or private repository data. Opening an issue does not guarantee that it will be accepted or worked on.
+
+## Pull requests
+
+Use a fork for your changes:
+
+1. Fork this repository and create a focused branch.
+2. Install dependencies with `npm ci` (Node.js 20 or newer is required).
+3. Make and review your changes. Keep pull requests focused and describe the user-visible effect and any tradeoffs.
+4. Run the checks listed below and include their results in your pull request.
+5. Open a pull request from your fork and respond to review feedback.
+
+The repository owner, [@ariusalipour](https://github.com/ariusalipour), is the maintainer whose approval is required before a community pull request can be merged. Reviews and approvals from other contributors are welcome and helpful, but do not replace maintainer approval. The owner merges approved changes to `main` after the required checks pass.
+
+For pull requests authored by the owner, GitHub does not allow the author to approve their own pull request. The owner may merge their own change after the required checks pass, using the repository's limited owner bypass where needed.
+
+The `main` branch requires pull requests. Its code-owner review rule names only `@ariusalipour`, and new commits dismiss stale approvals. Only that account may update `main` through a pull request. Direct pushes, force pushes, and deletion of `main` are blocked. A separate rule requires the Windows and Linux GitHub Actions checks on an up-to-date branch, with no bypass actors, including for owner-authored changes.
+
+The owner-only review bypass is limited to pull requests; it does not permit direct pushes or bypass the separate CI rule. Other contributors can still submit review opinions on GitHub, but those opinions cannot satisfy the required owner approval or give permission to merge.
+
+The applied ruleset definitions are recorded under [`.github/rulesets/`](.github/rulesets/). GitHub does not apply these JSON files automatically: the owner must update the live repository settings when changing the policy. Forks have their own permissions and rules; this policy governs the upstream BitMap repository.
+
+Live settings: [owner-controlled main](https://github.com/ariusalipour/BitMap/rules/26380713) and [required checks and history](https://github.com/ariusalipour/BitMap/rules/26380715).
+
+## Checks
+
+Before opening a pull request, run:
+
+```sh
+npm ci
+npm run build
+npm test
+```
+
+`npm test` runs the existing test suite. If a change affects behavior the suite does not cover, describe how you checked it manually.
+
+## Data and project scope
+
+Do not commit secrets, credentials, private repository content, or private graph/fixture data. Use synthetic or public example data in contributions. Keep private graph inputs outside the repository or in the ignored `local/` directory, and review generated output before sharing it.
+
+BitMap currently validates and renders a graph supplied by the user; it does not analyze source code automatically. Discuss substantial new capabilities in an issue before starting a large implementation, and describe clearly when a change affects graph validation, rendering, or exported output.
+
+## Review
+
+The maintainer may ask for changes, defer a proposal, or close a pull request that does not fit the project's needs. Please keep discussion constructive and allow time for review.

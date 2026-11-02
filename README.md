@@ -75,6 +75,10 @@ BitMap is a static snapshot tool. Rebuild after reviewing changes to the reposit
 
 BitMap includes selected GitDiagram source files for graph validation and Mermaid rendering. They are pinned to commit `7876ab0ca8b5ee46e836235e23c4886d5cdb79ae`. See [`vendor/gitdiagram/README.md`](vendor/gitdiagram/README.md), [`LICENSE-GitDiagram`](LICENSE-GitDiagram), and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the fork workflow, checks, and review policy. Only [@ariusalipour](https://github.com/ariusalipour) provides the required maintainer approval and merges changes into `main`.
+
 ## License
 
 BitMap's original code is available under the MIT License. See [`LICENSE`](LICENSE).
