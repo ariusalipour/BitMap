@@ -56,7 +56,7 @@ async function readJson(file, label) {
   catch (error) { throw new Error(`Cannot read ${label} at ${file}: ${error.message}`, { cause: error }); }
 }
 
-export async function prepareWorkspace({ root, graph, views, title, validate } = {}) {
+export async function prepareWorkspace({ root, graph, views, title, validate, allowMissingGraph = false } = {}) {
   if (!root) throw new Error('A repository directory is required.');
   const canonicalRoot = await fs.realpath(path.resolve(root));
   if (!(await fs.stat(canonicalRoot)).isDirectory()) throw new Error('The repository path must be a directory.');
@@ -89,13 +89,13 @@ export async function prepareWorkspace({ root, graph, views, title, validate } =
     previous ??= legacyConfig;
     legacy = true;
   }
-  if (!graph && !localGraph && !legacy) {
+  if (!graph && !localGraph && !legacy && !allowMissingGraph) {
     throw new Error('This repository has no bitmap/graph.json. Open it with --graph <graph.json> first; BitMap does not automatically analyse source code.');
   }
-  const graphInput = graph ? path.resolve(graph) : localGraph ? graphFile : path.join(legacyDirectory, 'graph.json');
+  const graphInput = graph ? path.resolve(graph) : localGraph ? graphFile : legacy ? path.join(legacyDirectory, 'graph.json') : undefined;
   const viewsInput = views ? path.resolve(views) : await exists(viewsFile) ? viewsFile
     : legacy && previous?.hasViews ? path.join(legacyDirectory, 'views.json') : undefined;
-  const graphValue = await readJson(graphInput, 'graph JSON');
+  const graphValue = graphInput ? await readJson(graphInput, 'graph JSON') : undefined;
   const viewsValue = viewsInput ? await readJson(viewsInput, 'views JSON') : undefined;
   const workspaceTitle = title || previous?.title || path.basename(canonicalRoot);
   if (typeof workspaceTitle !== 'string' || !workspaceTitle.trim()) throw new Error('The workspace title must be nonempty text.');
@@ -103,9 +103,9 @@ export async function prepareWorkspace({ root, graph, views, title, validate } =
   // Validation completes before authored inputs or portable settings are replaced.
   if (validate) await validate({ id, root: canonicalRoot, title: workspaceTitle, graph: graphInput, views: viewsInput, out });
   await fs.mkdir(directory, { recursive: true });
-  if (graphInput !== graphFile) await fs.writeFile(graphFile, `${JSON.stringify(graphValue, null, 2)}\n`);
+  if (graphInput && graphInput !== graphFile) await fs.writeFile(graphFile, `${JSON.stringify(graphValue, null, 2)}\n`);
   if (viewsInput && viewsInput !== viewsFile) await fs.writeFile(viewsFile, `${JSON.stringify(viewsValue, null, 2)}\n`);
   const portableConfig = `${JSON.stringify({ version: 1, title: workspaceTitle, hasViews: Boolean(viewsInput) }, null, 2)}\n`;
   if (!await exists(configFile) || await fs.readFile(configFile, 'utf8') !== portableConfig) await fs.writeFile(configFile, portableConfig);
-  return { id, root: canonicalRoot, title: workspaceTitle, graph: graphFile, views: viewsInput ? viewsFile : undefined, out };
+  return { id, root: canonicalRoot, title: workspaceTitle, graph: graphInput ? graphFile : undefined, views: viewsInput ? viewsFile : undefined, out };
 }

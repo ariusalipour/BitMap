@@ -40,6 +40,8 @@ test('opener compiles saved inputs and rejects invalid replacements without losi
     const portable = await openRepository({root:clone,noServe:true});
     assert.notEqual(portable.workspace.id,first.workspace.id);
     assert.equal(JSON.parse(await readFile(path.join(portable.workspace.out,'diagram.json'),'utf8')).graph.nodes[0].id,'app');
+    await openRepository({root,noServe:true,noAnalysis:true});
+    await assert.rejects(readFile(path.join(first.workspace.out,'semantic.json'),'utf8'),{code:'ENOENT'});
   } finally {
     for (const [i,key] of ['BITMAP_DATA_DIR','BITMAP_CACHE_DIR'].entries()) {
       if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i];

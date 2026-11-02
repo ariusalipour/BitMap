@@ -11,13 +11,14 @@
   "scripts": {
     "build": "node build.mjs",
     "start": "node server.mjs",
-    "test": "node --test server.test.mjs diagram-interactions.test.mjs component-icons.test.mjs theme.test.mjs cli.test.mjs runtime.test.mjs workspaces.test.mjs branch-comparison.test.mjs comparison-ui.test.mjs branch-picker.test.mjs",
+    "test": "node --test server.test.mjs diagram-interactions.test.mjs component-icons.test.mjs theme.test.mjs cli.test.mjs runtime.test.mjs workspaces.test.mjs branch-comparison.test.mjs comparison-ui.test.mjs branch-picker.test.mjs semantic-analysis.test.mjs semantic-views.test.mjs semantic-explorer.test.mjs semantic-workspace.test.mjs",
     "open": "node cli.mjs open"
   },
   "dependencies": {
     "dompurify": "^3.4.17",
     "esbuild": "^0.28.2",
     "mermaid": "^12.2.0",
+    "typescript": "^6.0.3",
     "zod": "^4.6.7"
   },
   "bin": {

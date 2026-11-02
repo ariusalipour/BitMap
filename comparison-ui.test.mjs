@@ -23,6 +23,16 @@ function fixture() {
 }
 const settle = () => new Promise(resolve=>setImmediate(resolve));
 const available = nodes => ({available:true,branch:'feature',base:'main',files:[{}],nodes,unmappedFiles:[],scope:'committed'});
+
+test('switching to code comparison uses indexed symbols and discards an old architecture response',async()=>{
+  const f=fixture();try {
+    f.fire('compare-toggle');f.controller.setScope('semantic');
+    assert.match(f.requests[1].url,/scope=semantic/);
+    f.response(1,available([{id:'symbol',reasons:[{kind:'source',path:'a.ts',status:'M'}]}]));await settle();
+    f.response(0,available([{id:'old',reasons:[{kind:'source',path:'a.ts',status:'M'}]}]));await settle();
+    assert.equal(f.controller.reasons('symbol').length,1);assert.deepEqual(f.controller.reasons('old'),[]);
+  }finally{f.restore();}
+});
 test('turning comparison off discards in-flight results and clears highlights', async()=>{
   const f=fixture();try {
     f.fire('compare-toggle'); assert.equal(f.requests[0].url,'/comparison?base=auto');

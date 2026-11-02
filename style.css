@@ -950,3 +950,39 @@ body[data-comparing=true] { grid-template-rows:49px auto auto minmax(0,1fr) 27px
   .comparison-strip { padding:7px 12px; }
   .component > span:not(.change-badge):not(.sr-only) { min-width:0; overflow-wrap:anywhere; }
 }
+/* Code exploration extends the compact architecture workspace with source hierarchy. */
+#explorer-toggle[aria-pressed=true], .semantic-modes button[aria-pressed=true] { color:var(--selected-ink); border-color:var(--accent); background:var(--selected-fill); }
+.semantic-controls { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; flex-basis:100%; order:4; padding:9px 0 1px; border-top:1px solid var(--line); }
+.semantic-controls[hidden] { display:none; }
+#semantic-breadcrumb { display:flex; align-items:center; flex-wrap:wrap; gap:4px; min-width:0; }
+#semantic-breadcrumb button { padding:3px 6px; border-color:transparent; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#semantic-breadcrumb span { color:var(--muted); }
+.semantic-modes { display:flex; gap:4px; }
+#semantic-notice { width:100%; color:var(--muted); font-size:11px; line-height:1.5; }
+.semantic-component { align-items:flex-start; }
+.semantic-component > span:first-child { flex-shrink:0; }
+.semantic-component small, .semantic-member small { display:block; font-size:10px; line-height:1.5; color:var(--muted); font-weight:normal; overflow-wrap:anywhere; }
+.semantic-details { border-top:1px solid var(--line); margin:16px 0; padding-top:12px; }
+.semantic-provenance, .symbol-location { color:var(--muted); font-size:10px; line-height:1.6; }
+.symbol-signature { font:11px/1.6 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; padding:10px; border:1px solid var(--line); background:var(--control); border-radius:3px; }
+.semantic-details h4 { font-size:11px; margin:16px 0 6px; }
+.symbol-parameters { margin:0; font:11px/1.6 var(--mono); }
+.symbol-parameters dt { color:var(--ink); margin-top:7px; }
+.symbol-parameters dd { margin:0; color:var(--muted); overflow-wrap:anywhere; }
+.semantic-member { width:100%; display:flex; align-items:center; gap:8px; text-align:left; margin-top:4px; border-color:transparent; }
+.semantic-member svg { flex-shrink:0; }
+.semantic-member span { min-width:0; overflow-wrap:anywhere; }
+@media(max-width:700px) { #semantic-breadcrumb button { max-width:160px; } .semantic-controls { gap:6px; } }
+
+.semantic-analysis { width:100%; color:var(--muted); font-size:11px; line-height:1.6; }
+.semantic-analysis summary { cursor:pointer; width:fit-content; }
+.semantic-analysis summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.semantic-analysis p { margin:6px 0; }
+.semantic-analysis ul { margin:6px 0 2px; padding-left:18px; max-width:900px; }
+.semantic-analysis li { margin-top:4px; }
+/* Keep code and its semantic details visible together at intermediate widths. */
+@media (min-width:1000px) and (max-width:1199px) {
+  body[data-exploring=true][data-inspector=open] .workspace { grid-template-columns:216px minmax(0,1fr) 290px; }
+  body[data-exploring=true][data-inspector=open][data-navigator=closed] .workspace { grid-template-columns:minmax(0,1fr) 290px; }
+  body[data-exploring=true][data-inspector=open] .inspector { position:static; width:auto; box-shadow:none; }
+}

@@ -4,6 +4,7 @@ import { readFile, realpath, stat, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compareBranch, listBranches } from './branch-comparison.mjs';
+import { buildSemanticView } from './semantic-views.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.mmd': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
@@ -16,7 +17,11 @@ export async function createAppServer(outputDirectory = path.join(here, 'dist'),
   const runtime = await realpath(runtimeDirectory);
   const data = JSON.parse(await readFile(path.join(out, 'diagram.json'), 'utf8'));
   const root = await realpath(data.root);
+  let semantic;
+  try { semantic = JSON.parse(await readFile(path.join(out,'semantic.json'),'utf8')); }
+  catch (error) { if (error.code !== 'ENOENT') throw Error('Cannot read the generated semantic index: '+error.message); }
   const allowed = new Set(data.graph.nodes.map(n => n.path).concat(data.graph.edges.map(e => e.evidencePath)).filter(Boolean));
+  for (const file of semantic?.files ?? []) allowed.add(file.path);
   const tool = {
     name: 'get_repository_diagram', description: 'Read the locally configured architecture snapshot. No remote lookup or generation.',
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
@@ -53,6 +58,20 @@ export async function createAppServer(outputDirectory = path.join(here, 'dist'),
       const url = new URL(req.url, 'http://' + host);
       if (url.pathname === '/mcp') { await mcp(req, res, host); return; }
       if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(403); res.end('Forbidden'); return; }
+      if (url.pathname === '/semantic' || url.pathname === '/semantic/view') {
+        if (req.headers.origin && req.headers.origin !== 'http://'+host) { res.writeHead(403); res.end('Forbidden'); return; }
+        res.setHeader('Content-Type','application/json');
+        if (!semantic) { res.end(JSON.stringify({available:false,message:'Reopen this repository with bitmap open to generate a source index.'})); return; }
+        if (url.pathname === '/semantic') { res.end(req.method === 'HEAD' ? undefined : JSON.stringify({...semantic,available:true})); return; }
+        const mode = url.searchParams.get('mode') ?? 'children';
+        const focus = url.searchParams.get('focus') || undefined;
+        const offset = Number(url.searchParams.get('offset') ?? 0);
+        if (!['children','calls','dependencies'].includes(mode) || !Number.isSafeInteger(offset) || offset < 0 || (focus && !semantic.symbols.some(symbol=>symbol.id===focus))) {
+          res.writeHead(400); res.end(JSON.stringify({message:'Choose an indexed symbol and a supported view mode.'})); return;
+        }
+        const view = buildSemanticView(semantic,{focus,mode,offset});
+        res.end(req.method === 'HEAD' ? undefined : JSON.stringify(view)); return;
+      }
       if (url.pathname === '/comparison' || url.pathname === '/branches') {
         if (req.headers.origin && req.headers.origin !== 'http://' + host) { res.writeHead(403); res.end('Forbidden'); return; }
         res.setHeader('Content-Type', 'application/json');
@@ -61,11 +80,16 @@ export async function createAppServer(outputDirectory = path.join(here, 'dist'),
           res.end(req.method === 'HEAD' ? undefined : JSON.stringify(branches)); return;
         }
         const bases = url.searchParams.getAll('base');
+        const scope = url.searchParams.get('scope') ?? 'architecture';
+        if (!['architecture','semantic'].includes(scope) || (scope === 'semantic' && !semantic)) {
+          res.writeHead(400); res.end(JSON.stringify({available:false,message:'The requested comparison scope is not available.'})); return;
+        }
         if (bases.length > 1 || (bases[0]?.length ?? 0) > 1024) {
           res.writeHead(400); res.end(JSON.stringify({available:false,message:'Choose one available comparison branch'})); return;
         }
         try {
-          const comparison = await compareBranch(root, data.graph, bases[0] ?? 'auto');
+          const comparisonGraph = scope === 'semantic' ? {nodes:semantic.symbols.map(symbol=>({id:symbol.id,path:symbol.path})),edges:semantic.relations.map(relation=>({from:relation.from,to:relation.to,evidencePath:relation.path}))} : data.graph;
+          const comparison = await compareBranch(root, comparisonGraph, bases[0] ?? 'auto');
           res.end(req.method === 'HEAD' ? undefined : JSON.stringify(comparison)); return;
         } catch (error) {
           if (error.code !== 'INVALID_BASE') throw error;

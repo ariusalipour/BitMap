@@ -11,6 +11,7 @@ export function createComparisonController(onChange: () => void, pickerFactory =
   const strip = document.getElementById('comparison-strip')!;
   const status = document.getElementById('comparison-status')!;
   let enabled = false, loading = false, generation = 0;
+  let scope: 'architecture' | 'semantic' = 'architecture';
   let result: Comparison | undefined;
   const reasons = (id: string) => enabled && result?.available ? result.nodes.find(n => n.id === id)?.reasons || [] : [];
   function paint() {
@@ -30,7 +31,7 @@ export function createComparisonController(onChange: () => void, pickerFactory =
     const request = ++generation;
     loading = true; result = undefined; paint();
     try {
-      const response = await fetch(`/comparison?base=${encodeURIComponent(base.value)}`);
+      const response = await fetch(`/comparison?base=${encodeURIComponent(base.value)}${scope === 'semantic' ? '&scope=semantic' : ''}`);
       const value = await response.json() as Comparison;
       if (!response.ok) throw Error(value.available === false ? value.message : 'Could not load the comparison. Try again.');
       if (request !== generation || !enabled) return;
@@ -48,6 +49,12 @@ export function createComparisonController(onChange: () => void, pickerFactory =
   refresh.addEventListener('click', () => { if (enabled) { void base.refresh(); void load(); } });
   return {
     reasons,
+    setScope(next: 'architecture' | 'semantic') {
+      if (scope === next) return;
+      scope = next;
+      if (enabled) void load();
+      else { generation++; result = undefined; paint(); }
+    },
     annotate(svg?: SVGSVGElement) {
       for (const element of document.querySelectorAll<HTMLElement>('.component[data-id]')) {
         const changes = reasons(element.dataset.id!);

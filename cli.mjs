@@ -3,13 +3,14 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
-import { realpath } from 'node:fs/promises';
+import { realpath, rm } from 'node:fs/promises';
 import { prepareWorkspace } from './workspaces.mjs';
 import { ensureRuntime } from './runtime.mjs';
 import { buildSnapshot } from './snapshot.mjs';
 import { createAppServer } from './server.mjs';
+import { buildSemanticWorkspace } from './semantic-workspace.mjs';
 
-const usage = 'Usage: bitmap open <repository> [--graph graph.json] [--views views.json] [--title name] [--port 4318] [--no-serve]';
+const usage = 'Usage: bitmap open <repository> [--graph graph.json] [--views views.json] [--title name] [--port 4318] [--no-serve] [--no-analysis]';
 export function parseArguments(args) {
   if (args.length === 1 && ['--help', '-h'].includes(args[0])) return { help: true };
   if (args[0] !== 'open' || !args[1] || args[1].startsWith('--')) throw Error(usage);
@@ -20,6 +21,7 @@ export function parseArguments(args) {
     if (seen.has(flag)) throw Error('Duplicate option: ' + flag);
     seen.add(flag);
     if (flag === '--no-serve') { options.noServe = true; continue; }
+    if (flag === '--no-analysis') { options.noAnalysis = true; continue; }
     if (!['--graph', '--views', '--title', '--port'].includes(flag) || !args[i + 1] || args[i + 1].startsWith('--')) throw Error(usage);
     options[flag.slice(2)] = args[++i];
   }
@@ -30,8 +32,12 @@ export function parseArguments(args) {
 
 export async function openRepository(options) {
   const runtime = await ensureRuntime();
-  const workspace = await prepareWorkspace({ ...options,
-    validate: candidate => buildSnapshot({ ...candidate, runtime }),
+  const workspace = await prepareWorkspace({ ...options, allowMissingGraph:!options.noAnalysis,
+    validate: async candidate => {
+      if (candidate.graph) await buildSnapshot({ ...candidate, runtime });
+      if (!options.noAnalysis) await buildSemanticWorkspace({...candidate,authored:Boolean(candidate.graph)});
+      else await rm(path.join(candidate.out,'semantic.json'),{force:true});
+    },
   });
   if (options.noServe) return { workspace, runtime };
   const server = await createAppServer(workspace.out, runtime);
@@ -50,7 +56,7 @@ if (process.argv[1] && await realpath(path.resolve(process.argv[1])).catch(() =>
     if (options.help) console.log(usage);
     else {
       const { workspace, server } = await openRepository(options);
-      console.log(`Graph: ${workspace.graph}\nWorkspace: ${workspace.id}\nSnapshot: ${workspace.out}`);
+      console.log(`Graph: ${workspace.graph || 'Source analysis (external cache)'}\nWorkspace: ${workspace.id}\nSnapshot: ${workspace.out}`);
       if (server) {
         console.log(`BitMap: http://127.0.0.1:${server.address().port}\nPress Ctrl+C to stop.`);
         for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close());

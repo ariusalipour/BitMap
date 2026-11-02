@@ -14,6 +14,8 @@ test('explicit semantic types select distinct component icons', () => {
     ['database', 'database'], ['worker', 'queue'], ['frontend', 'ui'], ['HTTPServer', 'service'],
     ['compiler', 'build'], ['validation', 'validation'], ['Sanitisation', 'security'],
     ['Pointer handling', 'interaction'], ['Viewport', 'ui'],
+    ['property', 'property'], ['field', 'property'], ['type', 'type'], ['enum', 'type'],
+    ['hook', 'hook'], ['UI component', 'ui'],
   ]) {
     assert.equal(getComponentAppearance({ type }).kind, kind, type);
   }
