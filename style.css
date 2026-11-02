@@ -906,3 +906,33 @@ body[data-inspector=closed][data-navigator=closed] .workspace {
     }
   }
 }
+/* Branch review uses amber annotations while blue remains the selection colour. */
+:root { --change-border:#986000; --change-fill:#fff6dd; }
+html[data-theme="dark"] { --change-border:#f4bd58; --change-fill:#3a301e; }
+body { grid-template-rows:49px auto minmax(0,1fr) 27px; }
+body[data-comparing=true] { grid-template-rows:49px auto auto minmax(0,1fr) 27px; }
+.toolbar { flex-wrap:wrap; padding-top:8px; padding-bottom:8px; }
+.comparison-controls { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+#compare-base { max-width:110px; }
+#compare-toggle[aria-pressed=true] { border-color:var(--change-border); color:var(--change-border); background:var(--change-fill); }
+.comparison-strip { display:flex; flex-wrap:wrap; gap:3px 16px; padding:7px 16px; border-bottom:1px solid var(--line); background:var(--change-fill); color:var(--ink); font-size:11px; }
+.comparison-strip[hidden], #compare-refresh[hidden] { display:none; }
+.comparison-scope { color:var(--muted); }
+.component[data-change=source], .component[data-change=evidence] { border-left:2px solid var(--change-border); padding-left:6px; }
+.component[data-change=evidence] { border-left-style:dashed; }
+.change-badge { margin-left:auto; flex-shrink:0; color:var(--change-border); font-size:9px; line-height:18px; }
+.change-reasons { border-top:1px solid var(--line); padding-top:12px; margin-top:18px; }
+.change-reasons h4 { margin:0 0 6px; font-size:11px; color:var(--change-border); }
+.change-reasons p { color:var(--muted); font-size:11px; }
+.change-reasons ul { list-style:none; padding:0; margin:8px 0 0; }
+.change-reasons li { margin-top:10px; font-size:11px; }
+.change-reasons strong { font-weight:600; }
+.change-reasons code { display:block; overflow-wrap:anywhere; font:10px/1.6 var(--mono); margin-top:3px; }
+@media(max-width:700px) {
+  body { grid-template-rows:49px auto minmax(0,1fr) 27px; }
+  body[data-comparing=true] { grid-template-rows:49px auto auto minmax(0,1fr) 27px; }
+  .comparison-controls { order:3; flex-basis:100%; }
+  .toolbar-actions { margin-left:auto; }
+  .comparison-strip { padding:7px 12px; }
+  .component > span:not(.change-badge):not(.sr-only) { min-width:0; overflow-wrap:anywhere; }
+}

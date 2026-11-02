@@ -3,6 +3,7 @@ import http from 'node:http';
 import { readFile, realpath, stat, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { compareBranch } from './branch-comparison.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.mmd': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
@@ -52,6 +53,16 @@ export async function createAppServer(outputDirectory = path.join(here, 'dist'),
       const url = new URL(req.url, 'http://' + host);
       if (url.pathname === '/mcp') { await mcp(req, res, host); return; }
       if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(403); res.end('Forbidden'); return; }
+      if (url.pathname === '/comparison') {
+        if (req.headers.origin && req.headers.origin !== 'http://' + host) { res.writeHead(403); res.end('Forbidden'); return; }
+        const bases = url.searchParams.getAll('base');
+        if (bases.length > 1 || !['auto', 'main', 'master'].includes(bases[0] ?? 'auto')) {
+          res.writeHead(400); res.end('Base must be auto, main or master'); return;
+        }
+        res.setHeader('Content-Type', 'application/json');
+        const comparison = await compareBranch(root, data.graph, bases[0] ?? 'auto');
+        res.end(req.method === 'HEAD' ? undefined : JSON.stringify(comparison)); return;
+      }
       if (url.pathname === '/source') {
         const relative = url.searchParams.get('path');
         if (!allowed.has(relative)) { res.writeHead(404); res.end('Source not included in diagram'); return; }

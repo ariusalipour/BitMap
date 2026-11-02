@@ -131,6 +131,22 @@ The input is a JSON object with `groups`, `nodes`, and `edges` arrays. Each node
 
 Paths are relative to the selected repository root. A node path can identify a file or directory. Evidence paths identify files that support a connection. The local viewer serves only paths referenced in the validated graph.
 
+## Compare a branch with main or master
+
+Use **Compare branch** in the diagram toolbar to highlight components touched by the current branch's committed changes. **Auto** selects `main` (local, then `origin/main`), falling back to `master` (local, then `origin/master`). You can select **main** or **master** explicitly. **Refresh** reruns the comparison after new commits or a branch switch.
+
+The comparison uses the merge base of the selected base and `HEAD`, like a pull-request diff. It excludes staged, unstaged, and untracked changes. BitMap reads existing local Git refs; it does not fetch, switch branches, or modify source files. Update your local refs separately when you need a newer baseline. Detached HEAD is supported when a merge base can be found. Missing Git history, a missing base, or unrelated histories produce an explanatory unavailable state.
+
+Highlights reflect the paths in the current authored graph:
+
+- A changed source path marks its component as **Changed**. A directory component matches files beneath that directory, with path boundaries respected.
+- A changed connection evidence path marks its endpoint components as **Evidence** unless they also have direct source changes.
+- Renames consider both old and new paths; added, modified, and deleted files are included. Changes without a matching component or evidence path are counted as unmapped.
+
+Select a highlighted component to see the changed paths and the reason it matched. Highlights persist when switching views or themes and are included in SVG exports. Turning comparison off clears them without changing the diagram layout or selected component.
+
+This is file-level change mapping, not a transitive dependency or behavioural impact analysis. Several classes declared in the same file will all match that file; nodes with no source or evidence path cannot be matched. Components absent from the current graph cannot be drawn, including components removed from that graph. The authored graph remains a snapshot even though the Git comparison is refreshed live.
+
 ## Snapshot behavior
 
 BitMap is a static snapshot tool. Reopen the workspace after reviewing changes to the repository; supply an updated graph with `--graph` when its architecture changes. The snapshot records the repository commit at build time; uncommitted or unversioned referenced files may also be reflected in the rendered graph and its hashes. A successful build validates graph structure and referenced paths, but does not establish that the graph is a complete or current description of the software.
