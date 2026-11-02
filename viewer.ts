@@ -43,6 +43,8 @@ function applyDiagramTheme(svg: SVGSVGElement) {
     #local-architecture .flowchart-link, #local-architecture .edgePaths path { stroke:${p.edge}!important; }
     #local-architecture marker path { fill:${p.edge}!important; stroke:${p.edge}!important; }
     #local-architecture .edgeLabel rect, #local-architecture .labelBkg { fill:${p.label}!important; }
+    #local-architecture .node.context-focus :is(rect,polygon,path,circle,ellipse) { stroke-width:2.5px!important; }
+    #local-architecture [data-context-label] { font-size:10px!important; font-weight:600; }
     #local-architecture .node.change-source :is(rect,polygon,path,circle,ellipse),
     #local-architecture .node.change-evidence :is(rect,polygon,path,circle,ellipse) { fill:${p.changedFill}!important; stroke:${p.changed}!important; stroke-width:2.5px!important; }
     #local-architecture .node.change-evidence :is(rect,polygon,path,circle,ellipse) { stroke-dasharray:5 3!important; }
@@ -86,6 +88,7 @@ function useGraph(next: typeof graph) {
   graph=next; groups=new Map(graph.groups.map(g=>[g.id,g.label])); byId=new Map(graph.nodes.map(n=>[n.id,n])); appearances=new Map(graph.nodes.map(n=>[n.id,getComponentAppearance(n)])); clearSelection();
 }
 const explorer=createSemanticExplorer({
+  select:id=>select(id),
   indexed:()=>{syncSelection();comparison.annotate(renderedSvg);},
   render:async view=>{ if(view.focus) panel('inspector',true); useGraph(view.graph); await renderGraphView(view); if(view.focus && byId.has(view.focus)) await select(view.focus); },
   restore:async()=>{ useGraph(architectureGraph); await renderView(viewSelect.value); },
@@ -106,7 +109,7 @@ $('snapshot-label').textContent = 'Snapshot · ' + date;
 $('provenance').textContent = `Baseline ${data.sourceCommit.slice(0,7)}${data.workingTreeDirty ? ' + working tree' : ''}\nGitDiagram ${data.upstreamCommit.slice(0,7)}`;
 
 function syncSelection() {
-  for(const button of document.querySelectorAll<HTMLButtonElement>('.component')) button.setAttribute('aria-pressed',String(button.dataset.id === selectedId));
+  for(const button of document.querySelectorAll<HTMLButtonElement>('.component, .semantic-member[data-id]')) button.setAttribute('aria-pressed',String(button.dataset.id === selectedId));
   for(const element of document.querySelectorAll('#canvas .node')) {
     const selected = Boolean(selectedId && element.id.includes(`flowchart-node_${selectedId}-`));
     element.classList.toggle('selected',selected); element.setAttribute('aria-pressed',String(selected));
@@ -121,17 +124,18 @@ function relationshipList(edges: Edge[],incoming: boolean) {
   }).join('');
 }
 async function select(id: string) {
-  const node = byId.get(id); if(!node) return;
+  const node = byId.get(id) ?? (explorer.active ? explorer.node(id) : undefined); if(!node) return;
   if(!explorer.active && !activeGraph.nodes.some(n => n.id === id)) { viewSelect.value = 'all'; await renderView('all'); }
   selectedId = id; syncSelection(); panel('inspector',true);
   if(innerWidth <= 700) panel('navigator',false);
-  const incoming = graph.edges.filter(e => e.to === id), outgoing = graph.edges.filter(e => e.from === id);
-  const appearance = appearances.get(id)!;
+  const incoming = explorer.active ? [] : graph.edges.filter(e => e.to === id), outgoing = explorer.active ? [] : graph.edges.filter(e => e.from === id);
+  const appearance = appearances.get(id) ?? getComponentAppearance(node);
   $('detail').innerHTML = `<p class="component-type" title="${esc(appearance.label)}">${appearance.svg}<span>${esc(node.type)}</span></p><h3 class="detail-title">${esc(node.label)}</h3>${groups.has(node.groupId!) ? `<p class="component-area">${esc(groups.get(node.groupId!)!)}</p>` : ''}${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}${explorer.active ? '' : `<p class="description">${esc(node.description || node.type)}</p>`}${explorer.inspector(id)}${!explorer.active && node.path && explorer.moduleForPath(node.path) ? `<button id="explore-component">Explore code</button>` : ''}<div data-comparison-detail>${comparison.inspector(id)}</div>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<button class="clear-selection">Clear selection</button>`;
   explorer.bindInspector();
   $('explore-component')?.addEventListener('click',()=>explorer.open(explorer.moduleForPath(node.path!)!.id,'children'));
   for(const button of $('detail').querySelectorAll<HTMLButtonElement>('[data-select]')) button.addEventListener('click',() => select(button.dataset.select!));
   $('detail').querySelector('.clear-selection')!.addEventListener('click',clearSelection);
+  syncSelection();
 }
 function componentIndex() {
   if(explorer.active) { explorer.index(); return; }
@@ -185,8 +189,17 @@ async function renderGraphView(view: any) {
     for(const node of renderedSvg.querySelectorAll<SVGGElement>('.node')) {
       const component = graph.nodes.find(n => node.id.includes(`flowchart-node_${n.id}-`));
       if(!component) continue;
-      node.dataset.componentId = component.id; node.dataset.componentLabel = component.label;
-      node.setAttribute('tabindex','0'); node.setAttribute('role','button'); node.setAttribute('aria-label',component.label);
+      const isCentre=explorer.active && component.id===view.focus;
+      node.dataset.componentId = component.id; node.dataset.componentLabel = component.label+(isCentre?', view centre':'');
+      node.classList.toggle('context-focus',isCentre);
+      if(isCentre) {
+        const shape=node.querySelector<SVGGraphicsElement>('rect,polygon,path,circle,ellipse');
+        if(shape) {
+          const box=shape.getBBox(),caption=document.createElementNS('http://www.w3.org/2000/svg','text');
+          caption.setAttribute('data-context-label','');caption.setAttribute('x',String(box.x+box.width/2));caption.setAttribute('y',String(box.y+box.height+13));caption.setAttribute('text-anchor','middle');caption.textContent='View centre';node.append(caption);
+        }
+      }
+      node.setAttribute('tabindex','0'); node.setAttribute('role','button'); node.setAttribute('aria-label',node.dataset.componentLabel);
       node.addEventListener('click',e => { e.stopPropagation(); select(component.id); });
       node.addEventListener('keydown',e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); select(component.id); } });
     }

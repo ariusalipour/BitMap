@@ -80,17 +80,19 @@ The authored graph format follows the vendored GitDiagram schema and currently p
 
 ### Explore source code
 
-Choose **Code explorer** to browse source modules or search symbols by name, kind, source path, signature or description. Selecting a module or class opens its immediate children. Breadcrumbs lead back through the containing symbols to the repository. The inspector exposes source lines, signatures, parameters, return types, members and documentation where available.
+Choose **Code explorer** to browse source modules or search symbols by name, kind, source path, signature or description. Clicking a symbol selects it and shows its details without replacing the current diagram, changing its centre, clearing search, or resetting the viewport. This also works for search results outside the diagram. Use the separate **Open relationships** icon beside a symbol, or the inspector's **Open relationships** button, to navigate into it. Source-file links are separate actions. Breadcrumbs navigate through the containing symbols to the repository. The inspector exposes source lines, signatures, parameters, return types, members and documentation where available.
 
 The explorer offers three perspectives:
 
 | Perspective | Relationships shown |
 | --- | --- |
 | **Structure** | A module or symbol and its immediate children, linked by containment. |
-| **Calls** | The selected symbol and resolved incoming/outgoing calls or JSX render relationships. |
-| **Dependencies** | The selected symbol and incoming/outgoing imports, inheritance and interface implementation. Imports connect modules. |
+| **Calls** | The view's centre symbol and its incoming callers/outgoing callees or JSX render relationships. Arrows point from caller to callee. Selecting another symbol does not change this centre. |
+| **Dependencies** | The view's centre symbol and incoming/outgoing imports, inheritance and interface implementation. Imports connect modules. |
 
-Diagrams stay focused instead of drawing every symbol at once. Large lists show the first 100 matches; refine search to find any symbol in the full index. A focused diagram indicates when its relationships or symbol count have been truncated. The inspector's **Explore** action opens the selected symbol for deeper navigation.
+Diagrams stay focused instead of drawing every symbol at once. Large lists show the first 100 matches; refine search to find any symbol in the full index. A focused diagram indicates when its relationships or symbol count have been truncated. Call diagrams include only relationships touching their centre, with a persistent **View centre** marker. Repeated relationships are combined into one arrow, annotated with distinct source-line locations rather than runtime execution counts. The inspector lists incoming and outgoing calls from the full index, including relationships outside the bounded diagram.
+
+Call edges associate source locations with their nearest indexed enclosing symbol. Anonymous callbacks are not separately indexed, so their calls may appear under the enclosing function; constructor calls currently target the class declaration. These are static source relationships, not a runtime execution trace.
 
 The TypeScript compiler indexes modules, classes, interfaces, functions, methods, properties, type aliases and enums. JSX usage and hook naming conventions also identify components and hooks. Documentation comments supply descriptions; source declarations supply signatures, locations and supported static relationships. Local `tsconfig.json` path aliases are considered, but extended configuration, compiler plugins and external package types are not loaded. BitMap does not run the analysed repository, its configuration or its build scripts.
 
