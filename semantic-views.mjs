@@ -59,21 +59,48 @@ export function buildSemanticView(index, { focus = null, mode = 'children', limi
   // Source index IDs are generated identifiers; reject unsafe hand-edited indexes rather than emitting syntax.
   if (selected.some(symbol => !safeId(symbol.id))) throw new Error('Semantic source index contains an unsafe symbol identifier.');
   const selectedIds = new Set(selected.map(symbol => symbol.id));
+  const callRoles = new Map();
+  if (mode === 'calls' && focused) {
+    for (const relation of relations) {
+      if (!CALLS.has(relation.kind)) continue;
+      if (relation.to === focus && relation.from !== focus) callRoles.set(relation.from, (callRoles.get(relation.from) ?? 0) | 1);
+      if (relation.from === focus && relation.to !== focus) callRoles.set(relation.to, (callRoles.get(relation.to) ?? 0) | 2);
+    }
+  }
   const nodes = selected.map(symbol => ({
     id: symbol.id, label: label(symbol.name ?? symbol.label ?? symbol.id), type: symbol.kind === 'component' ? 'UI component' : label(symbol.kind),
     description: symbol.description ? text(symbol.description).slice(0, 240) : null,
     groupId: 'source', path: symbol.path ?? null, shape: 'box', semantic: { ...symbol },
+    ...(mode === 'calls' && focused ? { semanticRole: symbol.id === focus ? 'focus' : ({ 1: 'caller', 2: 'callee', 3: 'both' })[callRoles.get(symbol.id)] } : {}),
   }));
   let included = relations.filter(relation => relevantKinds.has(relation.kind) && selectedIds.has(relation.from) && selectedIds.has(relation.to));
+  if (mode === 'calls') {
+    // A focused call diagram answers who calls this symbol and what it calls.
+    // Keep individual source sites in the index, but avoid parallel duplicate arrows.
+    if (focused) included = included.filter(relation => relation.from === focus || relation.to === focus);
+    const grouped = new Map();
+    for (const relation of included) {
+      const key = `${relation.from}\0${relation.to}\0${relation.kind}`;
+      let group = grouped.get(key);
+      if (!group) { group = { ...relation, sites: new Map() }; grouped.set(key, group); }
+      const site = { path: relation.evidencePath ?? relation.path ?? lookup.get(relation.from)?.path ?? null, line: relation.line ?? null };
+      group.sites.set(`${site.path}\0${site.line}`, site);
+    }
+    included = [...grouped.values()].map(({ sites, ...relation }) => ({ ...relation,
+      evidence: [...sites.values()].sort((a, b) => String(a.path).localeCompare(String(b.path), 'en') || (a.line ?? 0) - (b.line ?? 0)),
+      callSiteCount: sites.size,
+    }));
+  }
   // Containment is also available on symbols, including indexes with no redundant contains edges.
   if (mode === 'children') {
     const existing = new Set(included.map(edge => `${edge.from}\0${edge.to}`));
     included = [...included, ...selected.filter(symbol => selectedIds.has(symbol.parentId) && !existing.has(`${symbol.parentId}\0${symbol.id}`)).map(symbol => ({ from: symbol.parentId, to: symbol.id, kind: 'contains', path: symbol.path }))];
   }
   included.sort((a, b) => `${a.from}\0${a.to}\0${a.kind}`.localeCompare(`${b.from}\0${b.to}\0${b.kind}`, 'en'));
-  const edges = included.slice(0, 48).map(relation => ({ from: relation.from, to: relation.to, label: relation.kind,
+  const edges = included.slice(0, 48).map(relation => ({ from: relation.from, to: relation.to, label: relation.callSiteCount > 1 ? `${relation.kind} (${relation.callSiteCount} sites)` : relation.kind,
     description: null, style: relation.kind === 'imports' || relation.kind === 'implements' ? 'dashed' : 'solid',
     evidencePath: relation.evidencePath ?? relation.path ?? lookup.get(relation.from)?.path ?? null,
+    ...(mode === 'calls' ? { callSiteCount: relation.callSiteCount, evidence: relation.evidence } : {}),
   }));
   const graph = { nodes, edges, groups: nodes.length ? [{ id: 'source', label: 'Source symbols', description: null }] : [] };
   return { id: `semantic_${mode}`, label: focused ? `${label(focused.name ?? focused.id)} · ${mode}` : 'Source modules', graph,

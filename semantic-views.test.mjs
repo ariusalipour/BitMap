@@ -54,6 +54,47 @@ test('dense relationships respect rendering caps independently of index size', (
   assert.equal(view.truncated, true);
 });
 
+test('focused calls exclude neighbour relationships and distinguish callers, callees and cycles', () => {
+  const index = { symbols: ['focus', 'caller', 'callee', 'both'].map(id => symbol(id, 'function')), relations: [
+    { from: 'caller', to: 'focus', kind: 'calls' },
+    { from: 'focus', to: 'callee', kind: 'calls' },
+    { from: 'focus', to: 'both', kind: 'calls' },
+    { from: 'both', to: 'focus', kind: 'renders' },
+    { from: 'focus', to: 'focus', kind: 'calls' },
+    { from: 'caller', to: 'callee', kind: 'calls' },
+  ] };
+  const view = buildSemanticView(index, { focus: 'focus', mode: 'calls' });
+  assert.equal(view.graph.edges.length, 5);
+  assert.ok(!view.graph.edges.some(edge => edge.from === 'caller' && edge.to === 'callee'));
+  assert.ok(view.graph.edges.some(edge => edge.from === 'focus' && edge.to === 'focus'));
+  assert.deepEqual(Object.fromEntries(view.graph.nodes.map(node => [node.id, node.semanticRole])), {
+    focus: 'focus', both: 'both', callee: 'callee', caller: 'caller',
+  });
+  assert.equal(view.graph.edges.find(edge => edge.from === 'both').label, 'renders');
+});
+
+test('repeated call sites aggregate before edge caps without changing the raw index', () => {
+  const repeated = Array.from({ length: 70 }, (_, line) => ({ from: 'focus', to: 'a', kind: 'calls', path: 'src/focus.ts', line: line + 1 }));
+  const index = { symbols: ['focus', 'a', 'z'].map(id => symbol(id, 'function')), relations: [
+    ...repeated, { ...repeated[0] },
+    { from: 'focus', to: 'a', kind: 'calls', path: 'src/other.ts', line: 1 },
+    { from: 'focus', to: 'z', kind: 'calls', path: 'src/focus.ts', line: 90 },
+  ] };
+  const before = structuredClone(index);
+  const view = buildSemanticView(index, { focus: 'focus', mode: 'calls' });
+  assert.equal(view.graph.edges.length, 2);
+  const repeatedEdge = view.graph.edges.find(edge => edge.to === 'a');
+  assert.equal(repeatedEdge.callSiteCount, 71);
+  assert.equal(repeatedEdge.label, 'calls (71 sites)');
+  assert.equal(repeatedEdge.evidence.length, 71);
+  assert.deepEqual(repeatedEdge.evidence[0], { path: 'src/focus.ts', line: 1 });
+  const single = view.graph.edges.find(edge => edge.to === 'z');
+  assert.equal(single.label, 'calls');
+  assert.equal(single.callSiteCount, 1);
+  assert.equal(view.truncated, false);
+  assert.deepEqual(index, before);
+});
+
 test('labels cannot introduce Mermaid markup or directives and source paths remain data', () => {
   const malicious = { ...symbol('safe'), name: '"]\nclick node_safe "https://evil.test" <script>& %%{init}%%', path: 'src/<file>.ts' };
   const view = buildSemanticView({ symbols: [malicious], relations: [] });

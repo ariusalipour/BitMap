@@ -960,6 +960,14 @@ body[data-comparing=true] { grid-template-rows:49px auto auto minmax(0,1fr) 27px
 .semantic-modes { display:flex; gap:4px; }
 #semantic-notice { width:100%; color:var(--muted); font-size:11px; line-height:1.5; }
 .semantic-component { align-items:flex-start; }
+.semantic-symbol-row { display:flex; align-items:stretch; gap:3px; min-width:0; }
+.semantic-symbol-row > .component, .semantic-symbol-row > .semantic-member { flex:1; min-width:0; width:auto; }
+.semantic-open { flex:0 0 32px; display:flex; align-items:center; justify-content:center; align-self:stretch; padding:5px; border-color:transparent; color:var(--muted); }
+.semantic-open:hover { color:var(--ink); background:var(--selected-fill); }
+.semantic-open:focus-visible, .semantic-symbol-row > button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.semantic-details > button[data-open-symbol] { display:flex; align-items:center; gap:6px; }
+.semantic-empty { color:var(--muted); font-size:11px; line-height:1.5; }
+@media(pointer:coarse) { .semantic-open { flex-basis:44px; min-height:44px; } }
 .semantic-component > span:first-child { flex-shrink:0; }
 .semantic-component small, .semantic-member small { display:block; font-size:10px; line-height:1.5; color:var(--muted); font-weight:normal; overflow-wrap:anywhere; }
 .semantic-details { border-top:1px solid var(--line); margin:16px 0; padding-top:12px; }
