@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { compareBranch } from './branch-comparison.mjs';
+import { compareBranch, listBranches } from './branch-comparison.mjs';
 
 const execute = promisify(execFile);
 async function fixture(t, initialBranch = 'main') {
@@ -30,6 +30,56 @@ async function fixture(t, initialBranch = 'main') {
   const commit = async message => { await git('add', '--all'); await git('commit', '-m', message); };
   return { root, git, write, commit };
 }
+
+test('lists all exact local and remote branches without tags or symbolic aliases', async t => {
+  const { root, git, write, commit } = await fixture(t);
+  await write('a.ts', 'baseline\n');
+  await commit('baseline');
+  const baseline = await git('rev-parse', 'HEAD');
+  await git('branch', 'feature/日本語');
+  await git('branch', 'origin/shared');
+  await git('update-ref', 'refs/remotes/origin/shared', baseline);
+  await git('update-ref', 'refs/remotes/upstream/release/v2', baseline);
+  await git('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/shared');
+  await git('tag', 'release-tag');
+  const result = await listBranches(root);
+  assert.equal(result.available, true);
+  assert.deepEqual(result.branches, [
+    { ref: 'refs/heads/feature/日本語', name: 'feature/日本語', kind: 'local', current: false },
+    { ref: 'refs/heads/main', name: 'main', kind: 'local', current: true },
+    { ref: 'refs/heads/origin/shared', name: 'origin/shared', kind: 'local', current: false },
+    { ref: 'refs/remotes/origin/shared', name: 'origin/shared', kind: 'remote', current: false },
+    { ref: 'refs/remotes/upstream/release/v2', name: 'upstream/release/v2', kind: 'remote', current: false },
+  ]);
+  await git('switch', '--detach');
+  assert.ok((await listBranches(root)).branches.every(branch => !branch.current));
+});
+
+test('compares arbitrary inventoried branch refs and rejects revision expressions and tags', async t => {
+  const { root, git, write, commit } = await fixture(t);
+  await write('a.ts', 'baseline\n');
+  await commit('baseline');
+  const baseline = await git('rev-parse', 'HEAD');
+  await git('branch', 'release/日本語');
+  await git('update-ref', 'refs/remotes/upstream/release/v2', baseline);
+  await git('tag', 'release-tag');
+  await git('switch', '-c', 'feature');
+  await write('a.ts', 'changed\n');
+  await commit('feature');
+  const graph = { nodes: [{ id: 'a', path: 'a.ts' }], edges: [] };
+  for (const ref of ['refs/heads/release/日本語', 'refs/remotes/upstream/release/v2']) {
+    const result = await compareBranch(root, graph, ref);
+    assert.equal(result.available, true);
+    assert.equal(result.baseRef, ref);
+    assert.equal(result.baseCommit, baseline);
+    assert.equal(result.nodes[0].id, 'a');
+  }
+  for (const invalid of ['feature', '--help', '--output=bad', 'HEAD', 'HEAD~1', 'refs/heads/main^{commit}', 'refs/heads/main..HEAD', 'refs/tags/release-tag', 'refs/heads/missing', '', null]) {
+    await assert.rejects(compareBranch(root, graph, invalid), error => error.code === 'INVALID_BASE');
+  }
+  await git('branch', '-D', 'release/日本語');
+  await assert.rejects(compareBranch(root, graph, 'refs/heads/release/日本語'), error => error.code === 'INVALID_BASE');
+});
 
 test('maps committed changes to source paths, directory boundaries and relationship evidence', async t => {
   const { root, git, write, commit } = await fixture(t);

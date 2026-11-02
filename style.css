@@ -913,7 +913,21 @@ body { grid-template-rows:49px auto minmax(0,1fr) 27px; }
 body[data-comparing=true] { grid-template-rows:49px auto auto minmax(0,1fr) 27px; }
 .toolbar { flex-wrap:wrap; padding-top:8px; padding-bottom:8px; }
 .comparison-controls { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-#compare-base { max-width:110px; }
+.branch-picker { position:relative; min-width:0; }
+#compare-base { max-width:230px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:24px; position:relative; text-align:left; }
+#compare-base::after { content:'⌄'; position:absolute; right:8px; }
+.branch-picker-panel { position:absolute; z-index:30; top:calc(100% + 6px); left:0; width:min(390px,calc(100vw - 28px)); max-width:calc(100vw - 28px); padding:8px; border:1px solid var(--line); border-radius:6px; background:var(--surface); box-shadow:var(--popover-shadow); }
+#branch-search { width:100%; min-width:0; padding:8px 10px; border:1px solid var(--line); border-radius:4px; background:var(--control); color:var(--ink); font:inherit; }
+.branch-options { margin-top:6px; max-height:min(300px,40vh); overflow-y:auto; overscroll-behavior:contain; }
+.branch-option { display:flex; align-items:center; gap:10px; padding:9px 8px; cursor:pointer; border-radius:3px; font-size:12px; }
+.branch-option:hover, .branch-option.is-active { background:var(--hover); }
+.branch-option[aria-selected="true"] { color:var(--selected-ink); background:var(--selected-fill); }
+.branch-option-name { min-width:0; overflow-wrap:anywhere; font-family:var(--mono); }
+.branch-option-tag { margin-left:auto; color:var(--muted); white-space:nowrap; font-size:10px; }
+.branch-picker-footer { display:flex; align-items:center; gap:8px; padding:8px 4px 0; border-top:1px solid var(--line); color:var(--muted); font-size:11px; }
+.branch-picker-footer button { margin-left:auto; }
+#branch-picker-retry[hidden] { display:none; }
+@media (max-width:600px) { .branch-picker-panel { position:fixed; left:14px; top:auto; width:calc(100vw - 28px); margin-top:6px; } }
 #compare-toggle[aria-pressed=true] { border-color:var(--change-border); color:var(--change-border); background:var(--change-fill); }
 .comparison-strip { display:flex; flex-wrap:wrap; gap:3px 16px; padding:7px 16px; border-bottom:1px solid var(--line); background:var(--change-fill); color:var(--ink); font-size:11px; }
 .comparison-strip[hidden], #compare-refresh[hidden] { display:none; }

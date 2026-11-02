@@ -91,6 +91,19 @@ test('MCP rejects cross-origin requests and malformed input', async () => {
 });
 
 test('branch comparison uses the configured repository and restricts base options', async () => {
+  const inventoryResponse = await request('/branches');
+  assert.equal(inventoryResponse.status,200);
+  const inventory = JSON.parse(inventoryResponse.body);
+  assert.equal(typeof inventory.available,'boolean');
+  if (inventory.available) {
+    assert.ok(inventory.branches.every(branch => /^refs\/(heads|remotes)\//.test(branch.ref)));
+    const current = inventory.branches.find(branch => branch.current);
+    if (current) {
+      const selected = await request('/comparison?base='+encodeURIComponent(current.ref));
+      assert.equal(selected.status,200);
+      assert.deepEqual(JSON.parse(selected.body).files,[]);
+    }
+  }
   const result = await request('/comparison?base=auto');
   assert.equal(result.status, 200);
   assert.match(result.headers['content-type'], /application\/json/);
@@ -104,4 +117,6 @@ test('branch comparison uses the configured repository and restricts base option
   for (const base of ['--output=bad', 'HEAD', 'main&base=master', '..%2Fmain']) assert.equal((await request('/comparison?base='+base)).status,400);
   assert.equal((await request('/comparison',{method:'POST'})).status,403);
   assert.equal((await request('/comparison',{headers:{Origin:'https://untrusted.example'}})).status,403);
+  assert.equal((await request('/branches',{headers:{Origin:'https://untrusted.example'}})).status,403);
+  assert.equal((await request('/branches',{method:'POST'})).status,403);
 });

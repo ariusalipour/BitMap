@@ -1,11 +1,12 @@
 // Branch comparison state and annotations; updating highlights never rebuilds the diagram.
+import { createBranchPicker } from './branch-picker';
 export type ChangeReason = { kind: 'source' | 'evidence'; path: string; status: string; oldPath?: string };
 type Comparison = { available: true; branch: string; base: string; files: unknown[]; nodes: {id: string; reasons: ChangeReason[]}[]; unmappedFiles: unknown[]; scope: 'committed' } | {available: false; message: string};
 const statusLabel = (status: string) => ({ A:'Added', M:'Modified', D:'Deleted', R:'Renamed', C:'Copied', T:'Type changed', U:'Unmerged' }[status[0]] || status);
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-export function createComparisonController(onChange: () => void) {
+export function createComparisonController(onChange: () => void, pickerFactory = createBranchPicker) {
   const toggle = document.getElementById('compare-toggle')!;
-  const base = document.getElementById('compare-base') as HTMLSelectElement;
+  const base = pickerFactory(() => { if (enabled) void load(); });
   const refresh = document.getElementById('compare-refresh') as HTMLButtonElement;
   const strip = document.getElementById('comparison-strip')!;
   const status = document.getElementById('comparison-status')!;
@@ -16,7 +17,7 @@ export function createComparisonController(onChange: () => void) {
     toggle.setAttribute('aria-pressed', String(enabled));
     document.body.dataset.comparing = String(enabled);
     strip.hidden = !enabled;
-    base.disabled = !enabled;
+    base.setEnabled(enabled);
     refresh.hidden = !enabled;
     refresh.disabled = loading;
     refresh.textContent = result?.available === false ? 'Retry' : 'Refresh';
@@ -30,8 +31,8 @@ export function createComparisonController(onChange: () => void) {
     loading = true; result = undefined; paint();
     try {
       const response = await fetch(`/comparison?base=${encodeURIComponent(base.value)}`);
-      if (!response.ok) throw Error('Could not load the comparison. Try again.');
       const value = await response.json() as Comparison;
+      if (!response.ok) throw Error(value.available === false ? value.message : 'Could not load the comparison. Try again.');
       if (request !== generation || !enabled) return;
       result = value;
     } catch (error) {
@@ -44,8 +45,7 @@ export function createComparisonController(onChange: () => void) {
     if (enabled) void load();
     else { generation++; loading = false; result = undefined; paint(); }
   });
-  base.addEventListener('change', () => { if (enabled) void load(); });
-  refresh.addEventListener('click', () => { if (enabled) void load(); });
+  refresh.addEventListener('click', () => { if (enabled) { void base.refresh(); void load(); } });
   return {
     reasons,
     annotate(svg?: SVGSVGElement) {

@@ -131,9 +131,11 @@ The input is a JSON object with `groups`, `nodes`, and `edges` arrays. Each node
 
 Paths are relative to the selected repository root. A node path can identify a file or directory. Evidence paths identify files that support a connection. The local viewer serves only paths referenced in the validated graph.
 
-## Compare a branch with main or master
+## Compare branches
 
-Use **Compare branch** in the diagram toolbar to highlight components touched by the current branch's committed changes. **Auto** selects `main` (local, then `origin/main`), falling back to `master` (local, then `origin/master`). You can select **main** or **master** explicitly. **Refresh** reruns the comparison after new commits or a branch switch.
+Use **Compare branch** in the diagram toolbar to highlight components touched by the current branch's committed changes. Open the comparison-base picker and type to search all local and remote-tracking branches available in that checkout. Local and remote branches are identified separately, and the current local branch is marked. Use the arrow keys to navigate, Enter to select, and Escape to dismiss the picker.
+
+**Auto** remains a shortcut for `main` (local, then `origin/main`), falling back to `master` (local, then `origin/master`). Any listed branch can be selected as the base. **Refresh** updates the branch inventory and reruns the comparison after new commits or a branch switch. The picker also reloads branches when opened. It shows loading, no-match, and retry states; if a selected branch disappears, BitMap reports it rather than silently choosing another base. Tags and symbolic aliases such as `origin/HEAD` are excluded.
 
 The comparison uses the merge base of the selected base and `HEAD`, like a pull-request diff. It excludes staged, unstaged, and untracked changes. BitMap reads existing local Git refs; it does not fetch, switch branches, or modify source files. Update your local refs separately when you need a newer baseline. Detached HEAD is supported when a merge base can be found. Missing Git history, a missing base, or unrelated histories produce an explanatory unavailable state.
 

@@ -1,4 +1,4 @@
-// Compare committed branch changes with the local main/master history without modifying Git state.
+// Compare committed branch changes against locally available branch history without modifying Git state.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -14,6 +14,35 @@ async function git(root, args) {
     windowsHide: true,
   });
   return stdout;
+}
+
+function gitFailure(error, action) {
+  if (error.code === 'ENOENT') return { available: false, message: 'Git is not installed or cannot be found on PATH.' };
+  if (error.killed || error.code === 'ETIMEDOUT') return { available: false, message: `The Git ${action} timed out. Try again after repository operations finish.` };
+  if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return { available: false, message: `The Git ${action} exceeds the size limit.` };
+  return { available: false, message: `Unable to ${action} this repository. It must have a committed Git history.` };
+}
+
+/** Enumerate exact local and remote-tracking refs, excluding symbolic remote HEAD aliases. */
+export async function listBranches(root) {
+  try {
+    const output = await git(root, ['for-each-ref', '--format=%(refname)%00%(symref)%00%(HEAD)', 'refs/heads', 'refs/remotes']);
+    const branches = output.split('\n').filter(Boolean).flatMap(line => {
+      const [ref, symref, head] = line.split('\0');
+      if (symref) return [];
+      const kind = ref.startsWith('refs/heads/') ? 'local' : 'remote';
+      return [{ ref, name: ref.slice(kind === 'local' ? 'refs/heads/'.length : 'refs/remotes/'.length), kind, current: head?.trim() === '*' }];
+    });
+    return { available: true, branches };
+  } catch (error) {
+    return gitFailure(error, 'list branches in');
+  }
+}
+
+function invalidBase() {
+  const error = new Error('Comparison base must be auto, main, master, or an exact available branch reference.');
+  error.code = 'INVALID_BASE';
+  return error;
 }
 
 function parseFiles(output) {
@@ -42,29 +71,21 @@ function matches(graphPath, file) {
 
 /** Map changed source paths and changed relationship evidence onto the authored graph. */
 export async function compareBranch(root, graph, requestedBase = 'auto') {
-  if (!['auto', 'main', 'master'].includes(requestedBase)) {
-    throw new Error('Comparison base must be auto, main, or master.');
-  }
+  if (typeof requestedBase !== 'string') throw invalidBase();
+  const inventory = await listBranches(root);
+  const legacy = ['auto', 'main', 'master'].includes(requestedBase);
+  if (!legacy && (!inventory.available || !inventory.branches.some(branch => branch.ref === requestedBase))) throw invalidBase();
+  if (!inventory.available) return inventory;
   try {
     const headCommit = (await git(root, ['rev-parse', '--verify', 'HEAD^{commit}'])).trim();
     const branchName = (await git(root, ['branch', '--show-current'])).trim();
-    const names = requestedBase === 'auto' ? ['main', 'master'] : [requestedBase];
-    let base;
-    let baseCommit;
-    for (const name of names) {
-      for (const [reference, label] of [[`refs/heads/${name}`, name], [`refs/remotes/origin/${name}`, `origin/${name}`]]) {
-        try {
-          baseCommit = (await git(root, ['rev-parse', '--verify', `${reference}^{commit}`])).trim();
-          base = label;
-          break;
-        } catch (error) {
-          // A missing candidate is expected. Execution failures must not masquerade as missing refs.
-          if (error.code !== 128 && error.code !== 1) throw error;
-        }
-      }
-      if (base) break;
-    }
-    if (!base) return { available: false, message: `No ${requestedBase === 'auto' ? 'main or master' : requestedBase} branch is available locally. Fetch it outside BitMap and try again.` };
+    const candidates = legacy
+      ? (requestedBase === 'auto' ? ['main', 'master'] : [requestedBase]).flatMap(name => [`refs/heads/${name}`, `refs/remotes/origin/${name}`])
+      : [requestedBase];
+    const selected = candidates.map(ref => inventory.branches.find(branch => branch.ref === ref)).find(Boolean);
+    if (!selected) return { available: false, message: `No ${requestedBase === 'auto' ? 'main or master' : requestedBase} branch is available locally. Fetch it outside BitMap and try again.` };
+    const base = selected.name;
+    const baseCommit = (await git(root, ['rev-parse', '--verify', `${selected.ref}^{commit}`])).trim();
     let mergeBase;
     try {
       mergeBase = (await git(root, ['merge-base', baseCommit, headCommit])).trim();
@@ -99,7 +120,7 @@ export async function compareBranch(root, graph, requestedBase = 'auto') {
     return {
       available: true,
       branch: branchName || 'Detached HEAD',
-      base, baseCommit, headCommit, mergeBase, files,
+      base, baseRef: selected.ref, baseCommit, headCommit, mergeBase, files,
       nodes: (graph.nodes ?? []).filter(node => affected.has(node.id)).map(node => ({ id: node.id, reasons: affected.get(node.id) })),
       unmappedFiles: files.filter(file => !mappedFiles.has(file)),
       scope: 'committed',
@@ -108,6 +129,6 @@ export async function compareBranch(root, graph, requestedBase = 'auto') {
     if (error.code === 'ENOENT') return { available: false, message: 'Git is not installed or cannot be found on PATH.' };
     if (error.killed || error.code === 'ETIMEDOUT') return { available: false, message: 'The Git comparison timed out. Try again after repository operations finish.' };
     if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') return { available: false, message: 'The changed-file list exceeds the comparison size limit.' };
-    return { available: false, message: 'Unable to compare this repository. It must have a committed Git history and an accessible main or master branch.' };
+    return { available: false, message: 'Unable to compare this repository. It must have a committed Git history and an accessible selected branch.' };
   }
 }
