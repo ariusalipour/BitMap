@@ -26,8 +26,8 @@ test('external workspaces preserve inputs without modifying repositories', async
     const second = await prepareWorkspace({ root: secondRoot, graph });
     assert.notEqual(first.id, second.id, 'same basename does not collide');
     assert.equal(first.id.length, 64);
-    assert.ok(first.graph.startsWith(process.env.BITMAP_DATA_DIR));
-    assert.ok(first.out.startsWith(process.env.BITMAP_CACHE_DIR));
+    assert.equal(path.relative(await fs.realpath(process.env.BITMAP_DATA_DIR), first.graph), path.join('workspaces', first.id, 'graph.json'));
+    assert.equal(path.relative(await fs.realpath(process.env.BITMAP_CACHE_DIR), first.out), path.join('workspaces', first.id));
     await fs.unlink(graph);
     await fs.unlink(views);
     const reopened = await prepareWorkspace({ root: path.join(firstRoot, '.') });
