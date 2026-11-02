@@ -980,3 +980,9 @@ body[data-comparing=true] { grid-template-rows:49px auto auto minmax(0,1fr) 27px
 .semantic-analysis p { margin:6px 0; }
 .semantic-analysis ul { margin:6px 0 2px; padding-left:18px; max-width:900px; }
 .semantic-analysis li { margin-top:4px; }
+/* Keep code and its semantic details visible together at intermediate widths. */
+@media (min-width:1000px) and (max-width:1199px) {
+  body[data-exploring=true][data-inspector=open] .workspace { grid-template-columns:216px minmax(0,1fr) 290px; }
+  body[data-exploring=true][data-inspector=open][data-navigator=closed] .workspace { grid-template-columns:minmax(0,1fr) 290px; }
+  body[data-exploring=true][data-inspector=open] .inspector { position:static; width:auto; box-shadow:none; }
+}

@@ -87,9 +87,9 @@ function useGraph(next: typeof graph) {
 }
 const explorer=createSemanticExplorer({
   indexed:()=>{syncSelection();comparison.annotate(renderedSvg);},
-  render:async view=>{ useGraph(view.graph); await renderGraphView(view); if(view.focus && byId.has(view.focus)) await select(view.focus); },
+  render:async view=>{ if(view.focus) panel('inspector',true); useGraph(view.graph); await renderGraphView(view); if(view.focus && byId.has(view.focus)) await select(view.focus); },
   restore:async()=>{ useGraph(architectureGraph); await renderView(viewSelect.value); },
-  changed:active=>{ comparison.setScope(active || data.semanticGenerated ? 'semantic' : 'architecture'); search.value=''; search.placeholder=active ? 'Find classes, functions, files...' : 'Find a component'; $('navigator').querySelector('h2')!.textContent=active ? 'Code symbols' : 'Components'; }
+  changed:active=>{ document.body.dataset.exploring=String(active); comparison.setScope(active || data.semanticGenerated ? 'semantic' : 'architecture'); search.value=''; search.placeholder=active ? 'Find classes, functions, files...' : 'Find a component'; $('navigator').querySelector('h2')!.textContent=active ? 'Code symbols' : 'Components'; }
 });
 const semanticReady = explorer.load();
 
