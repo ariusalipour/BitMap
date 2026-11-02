@@ -3,7 +3,7 @@ import http from 'node:http';
 import { readFile, realpath, stat, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compareBranch } from './branch-comparison.mjs';
+import { compareBranch, listBranches } from './branch-comparison.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.mmd': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
@@ -53,15 +53,24 @@ export async function createAppServer(outputDirectory = path.join(here, 'dist'),
       const url = new URL(req.url, 'http://' + host);
       if (url.pathname === '/mcp') { await mcp(req, res, host); return; }
       if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(403); res.end('Forbidden'); return; }
-      if (url.pathname === '/comparison') {
+      if (url.pathname === '/comparison' || url.pathname === '/branches') {
         if (req.headers.origin && req.headers.origin !== 'http://' + host) { res.writeHead(403); res.end('Forbidden'); return; }
-        const bases = url.searchParams.getAll('base');
-        if (bases.length > 1 || !['auto', 'main', 'master'].includes(bases[0] ?? 'auto')) {
-          res.writeHead(400); res.end('Base must be auto, main or master'); return;
-        }
         res.setHeader('Content-Type', 'application/json');
-        const comparison = await compareBranch(root, data.graph, bases[0] ?? 'auto');
-        res.end(req.method === 'HEAD' ? undefined : JSON.stringify(comparison)); return;
+        if (url.pathname === '/branches') {
+          const branches = await listBranches(root);
+          res.end(req.method === 'HEAD' ? undefined : JSON.stringify(branches)); return;
+        }
+        const bases = url.searchParams.getAll('base');
+        if (bases.length > 1 || (bases[0]?.length ?? 0) > 1024) {
+          res.writeHead(400); res.end(JSON.stringify({available:false,message:'Choose one available comparison branch'})); return;
+        }
+        try {
+          const comparison = await compareBranch(root, data.graph, bases[0] ?? 'auto');
+          res.end(req.method === 'HEAD' ? undefined : JSON.stringify(comparison)); return;
+        } catch (error) {
+          if (error.code !== 'INVALID_BASE') throw error;
+          res.writeHead(400); res.end(JSON.stringify({available:false,message:error.message})); return;
+        }
       }
       if (url.pathname === '/source') {
         const relative = url.searchParams.get('path');

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile } from 'node:fs/promises';
-import { transform } from 'esbuild';
-const {code} = await transform(await readFile(new URL('./comparison-ui.ts', import.meta.url),'utf8'), {loader:'ts',format:'esm'});
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
+const bundle = await build({entryPoints:[fileURLToPath(new URL('./comparison-ui.ts',import.meta.url))],bundle:true,write:false,format:'esm',platform:'browser'});
+const code = bundle.outputFiles[0].text;
 const {createComparisonController} = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 function fixture() {
   const elements = new Map(['compare-toggle','compare-base','compare-refresh','comparison-strip','comparison-status'].map(id => [id, Object.assign(new EventTarget(), {attrs:{},setAttribute(k,v){this.attrs[k]=v;},value:'auto',hidden:false,disabled:false,textContent:''})]));
@@ -11,7 +12,11 @@ function fixture() {
   globalThis.document = {body:{dataset:{}},getElementById:id=>elements.get(id),querySelectorAll:()=>components,createElement:()=>({className:'',textContent:''})};
   const requests = [];
   globalThis.fetch = url => new Promise((resolve,reject)=>requests.push({url,resolve,reject}));
-  const controller = createComparisonController(()=>controller.annotate());
+  const controller = createComparisonController(()=>controller.annotate(),onSelect=>{
+    const element=elements.get('compare-base');
+    element.addEventListener('change',onSelect);
+    return {get value(){return element.value;},setEnabled(enabled){element.disabled=!enabled;},async refresh(){}};
+  });
   const fire = (id,event='click') => elements.get(id).dispatchEvent(new Event(event));
   const response = (index,payload) => requests[index].resolve({ok:true,json:async()=>payload});
   return {elements,components,requests,controller,fire,response,restore(){globalThis.document=previousDocument;globalThis.fetch=previousFetch;}};

@@ -11,7 +11,7 @@
   "scripts": {
     "build": "node build.mjs",
     "start": "node server.mjs",
-    "test": "node --test server.test.mjs diagram-interactions.test.mjs component-icons.test.mjs theme.test.mjs cli.test.mjs runtime.test.mjs workspaces.test.mjs branch-comparison.test.mjs comparison-ui.test.mjs",
+    "test": "node --test server.test.mjs diagram-interactions.test.mjs component-icons.test.mjs theme.test.mjs cli.test.mjs runtime.test.mjs workspaces.test.mjs branch-comparison.test.mjs comparison-ui.test.mjs branch-picker.test.mjs",
     "open": "node cli.mjs open"
   },
   "dependencies": {
