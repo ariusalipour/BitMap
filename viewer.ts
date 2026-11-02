@@ -5,8 +5,9 @@ import { buildMermaidConfig, MERMAID_SVG_SANITIZE_OPTIONS } from './vendor/gitdi
 import { sanitizeMermaidSourceForRender } from './vendor/gitdiagram/src/features/diagram/mermaid-security';
 import { createViewport } from './vendor/gitdiagram/src/mcp-app/viewport';
 import { installDiagramInteractions } from './diagram-interactions';
+import { getComponentAppearance } from './component-icons';
 
-type Node = { id: string; label: string; type: string; description: string | null; groupId: string | null; path: string | null };
+type Node = { id: string; label: string; type: string; description: string | null; groupId: string | null; path: string | null; shape?: string | null };
 type Edge = { from: string; to: string; label: string | null; evidencePath?: string | null };
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
@@ -22,6 +23,7 @@ const graph = data.graph as { nodes: Node[]; edges: Edge[]; groups: {id:string;l
 let activeGraph = data.views[0].graph as typeof graph;
 const groups = new Map(graph.groups.map(g => [g.id,g.label]));
 const byId = new Map(graph.nodes.map(n => [n.id,n]));
+const appearances = new Map(graph.nodes.map(n => [n.id,getComponentAppearance(n)]));
 const search = $('search') as HTMLInputElement;
 const viewSelect = $('view') as HTMLSelectElement;
 installDiagramInteractions($('stage'));
@@ -49,7 +51,8 @@ function clearSelection() { selectedId = null; syncSelection(); $('detail').inne
 function relationshipList(edges: Edge[],incoming: boolean) {
   return edges.map(e => {
     const other = byId.get(incoming ? e.from : e.to)!;
-    return `<div class="relation"><button class="relation-main" data-select="${esc(other.id)}">${esc(other.label)}<span>${esc(e.label || 'Connected')}</span></button>${e.evidencePath ? `<a class="relation-source" href="/source?path=${encodeURIComponent(e.evidencePath)}" target="_blank" rel="noopener" aria-label="Open evidence for ${esc(other.label)}" title="Open source evidence">↗</a>` : ''}</div>`;
+    const appearance = appearances.get(other.id)!;
+    return `<div class="relation"><button class="relation-main" data-select="${esc(other.id)}" title="${esc(appearance.label)}">${appearance.svg}<span class="relation-copy">${esc(other.label)}<small>${esc(e.label || 'Connected')}</small></span><span class="sr-only">, ${esc(appearance.label)}</span></button>${e.evidencePath ? `<a class="relation-source" href="/source?path=${encodeURIComponent(e.evidencePath)}" target="_blank" rel="noopener" aria-label="Open evidence for ${esc(other.label)}" title="Open source evidence">↗</a>` : ''}</div>`;
   }).join('');
 }
 async function select(id: string) {
@@ -58,7 +61,8 @@ async function select(id: string) {
   selectedId = id; syncSelection(); panel('inspector',true);
   if(innerWidth <= 700) panel('navigator',false);
   const incoming = graph.edges.filter(e => e.to === id), outgoing = graph.edges.filter(e => e.from === id);
-  $('detail').innerHTML = `<p class="component-type">${esc(groups.get(node.groupId!) || node.type)}</p><h3 class="detail-title">${esc(node.label)}</h3>${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}<p class="description">${esc(node.description || node.type)}</p>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<button class="clear-selection">Clear selection</button>`;
+  const appearance = appearances.get(id)!;
+  $('detail').innerHTML = `<p class="component-type" title="${esc(appearance.label)}">${appearance.svg}<span>${esc(node.type)}</span></p><h3 class="detail-title">${esc(node.label)}</h3>${groups.has(node.groupId!) ? `<p class="component-area">${esc(groups.get(node.groupId!)!)}</p>` : ''}${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}<p class="description">${esc(node.description || node.type)}</p>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<button class="clear-selection">Clear selection</button>`;
   for(const button of $('detail').querySelectorAll<HTMLButtonElement>('[data-select]')) button.addEventListener('click',() => select(button.dataset.select!));
   $('detail').querySelector('.clear-selection')!.addEventListener('click',clearSelection);
 }
@@ -68,7 +72,10 @@ function componentIndex() {
   $('count').textContent = query ? `${matches.length} / ${activeGraph.nodes.length}` : String(activeGraph.nodes.length);
   $('components').innerHTML = graph.groups.map(g => {
     const nodes = matches.filter(n => n.groupId === g.id);
-    return nodes.length ? `<p class="group-label">${esc(g.label)}</p>${nodes.map(n => `<button class="component" data-id="${esc(n.id)}" aria-pressed="${n.id === selectedId}">${esc(n.label)}</button>`).join('')}` : '';
+    return nodes.length ? `<p class="group-label">${esc(g.label)}</p>${nodes.map(n => {
+      const appearance = appearances.get(n.id)!;
+      return `<button class="component" data-id="${esc(n.id)}" aria-pressed="${n.id === selectedId}" title="${esc(appearance.label)} · ${esc(n.type)}">${appearance.svg}<span>${esc(n.label)}</span><span class="sr-only">, ${esc(appearance.label)}</span></button>`;
+    }).join('')}` : '';
   }).join('') || '<p class="empty">No matching components.<br>Try a different name or source path.</p>';
   for(const button of document.querySelectorAll<HTMLButtonElement>('.component')) button.addEventListener('click',() => select(button.dataset.id!));
 }

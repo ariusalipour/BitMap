@@ -305,15 +305,16 @@ kbd {
   font: 12px/1.4 var(--font);
   color: #424b58;
 }
-.component::before {
-  content: "";
+.component-icon {
   display: block;
-  width: 7px;
-  height: 7px;
-  flex-shrink: 0;
-  border: 1px solid #a8b0bd;
-  border-radius: 1px;
-  margin-top: 4px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: #738195;
+  pointer-events: none;
+}
+.component > .component-icon {
+  margin-top: 1px;
 }
 .component:hover {
   background: #f1f3f6;
@@ -322,9 +323,8 @@ kbd {
   background: var(--selection);
   color: #174fae;
 }
-.component[aria-pressed=true]::before {
-  border-color: var(--accent);
-  background: #dbe7ff;
+.component[aria-pressed=true] .component-icon {
+  color: var(--accent);
 }
 .navigator-footer {
   border-top: 1px solid var(--line);
@@ -499,9 +499,17 @@ kbd {
   margin-right: 3px;
 }
 .component-type {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 11px;
   color: var(--muted);
   margin: 5px 0 6px;
+}
+.component-area {
+  margin: -4px 0 12px;
+  font-size: 11px;
+  color: var(--muted);
 }
 .detail-title {
   font-size: 16px;
@@ -554,7 +562,9 @@ kbd {
   border: 0;
   padding: 0;
   min-height: 0;
-  display: block;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   white-space: normal;
   text-align: left;
   background: none;
@@ -568,7 +578,13 @@ kbd {
   background: none;
   color: var(--accent);
 }
-.relation-main span {
+.relation-main .component-icon {
+  margin-top: 1px;
+}
+.relation-copy {
+  min-width: 0;
+}
+.relation-main small {
   display: block;
   color: var(--muted);
   font-size: 11px;
