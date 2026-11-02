@@ -5,8 +5,10 @@ import { buildMermaidConfig, MERMAID_SVG_SANITIZE_OPTIONS } from './vendor/gitdi
 import { sanitizeMermaidSourceForRender } from './vendor/gitdiagram/src/features/diagram/mermaid-security';
 import { createViewport } from './vendor/gitdiagram/src/mcp-app/viewport';
 import { installDiagramInteractions } from './diagram-interactions';
+import { getComponentAppearance } from './component-icons';
+import { createThemeController, type Theme } from './theme';
 
-type Node = { id: string; label: string; type: string; description: string | null; groupId: string | null; path: string | null };
+type Node = { id: string; label: string; type: string; description: string | null; groupId: string | null; path: string | null; shape?: string | null };
 type Edge = { from: string; to: string; label: string | null; evidencePath?: string | null };
 const $ = (id: string) => document.getElementById(id)!;
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
@@ -14,6 +16,42 @@ const emptyInspector = $('detail').innerHTML;
 let viewport: ReturnType<typeof createViewport> | undefined;
 let renderedSvg: SVGSVGElement | undefined;
 let selectedId: string | null = null;
+function diagramPalette() {
+  const style = getComputedStyle(document.documentElement);
+  const value = (name: string) => style.getPropertyValue(name).trim();
+  return {
+    background: value('--canvas'), node: value('--diagram-node'), border: value('--diagram-border'),
+    text: value('--diagram-text'), edge: value('--diagram-edge'), cluster: value('--diagram-cluster'),
+    clusterBorder: value('--diagram-cluster-border'), label: value('--diagram-label-bg'),
+  };
+}
+function applyDiagramTheme(svg: SVGSVGElement) {
+  const p = diagramPalette();
+  let style = svg.querySelector<SVGStyleElement>('[data-bitmap-theme]');
+  if (!style) { style = document.createElementNS('http://www.w3.org/2000/svg', 'style'); style.setAttribute('data-bitmap-theme', ''); svg.append(style); }
+  // Literal colours keep exported SVGs independent of the application stylesheet.
+  style.textContent = `
+    #local-architecture { background:${p.background}; color:${p.text}; }
+    #local-architecture .node rect, #local-architecture .node polygon, #local-architecture .node path,
+    #local-architecture .node circle, #local-architecture .node ellipse { fill:${p.node}!important; stroke:${p.border}!important; }
+    #local-architecture text, #local-architecture tspan { fill:${p.text}!important; color:${p.text}!important; }
+    #local-architecture .cluster rect { fill:${p.cluster}!important; stroke:${p.clusterBorder}!important; }
+    #local-architecture .flowchart-link, #local-architecture .edgePaths path { stroke:${p.edge}!important; }
+    #local-architecture marker path { fill:${p.edge}!important; stroke:${p.edge}!important; }
+    #local-architecture .edgeLabel rect, #local-architecture .labelBkg { fill:${p.label}!important; }
+  `;
+}
+function updateTheme(theme: Theme) {
+  const label = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  $('theme-toggle').setAttribute('aria-label', label);
+  $('theme-toggle').setAttribute('aria-pressed', String(theme === 'dark'));
+  $('theme-toggle').title = label;
+  if (renderedSvg) applyDiagramTheme(renderedSvg);
+}
+let themeStorage: Storage | undefined;
+try { themeStorage = window.localStorage; } catch { /* Storage can be disabled. */ }
+const theme = createThemeController(document.documentElement, themeStorage, window.matchMedia('(prefers-color-scheme: dark)'), updateTheme);
+$('theme-toggle').addEventListener('click', () => theme.toggle());
 const data = await fetch('/diagram.json').then(r => { if (!r.ok) throw Error('Cannot load local map'); return r.json(); });
 document.title = data.title === 'BitMap' ? 'BitMap — Code architecture' : `${data.title} — BitMap`;
 $('project-title').textContent = data.title;
@@ -22,6 +60,7 @@ const graph = data.graph as { nodes: Node[]; edges: Edge[]; groups: {id:string;l
 let activeGraph = data.views[0].graph as typeof graph;
 const groups = new Map(graph.groups.map(g => [g.id,g.label]));
 const byId = new Map(graph.nodes.map(n => [n.id,n]));
+const appearances = new Map(graph.nodes.map(n => [n.id,getComponentAppearance(n)]));
 const search = $('search') as HTMLInputElement;
 const viewSelect = $('view') as HTMLSelectElement;
 installDiagramInteractions($('stage'));
@@ -49,7 +88,8 @@ function clearSelection() { selectedId = null; syncSelection(); $('detail').inne
 function relationshipList(edges: Edge[],incoming: boolean) {
   return edges.map(e => {
     const other = byId.get(incoming ? e.from : e.to)!;
-    return `<div class="relation"><button class="relation-main" data-select="${esc(other.id)}">${esc(other.label)}<span>${esc(e.label || 'Connected')}</span></button>${e.evidencePath ? `<a class="relation-source" href="/source?path=${encodeURIComponent(e.evidencePath)}" target="_blank" rel="noopener" aria-label="Open evidence for ${esc(other.label)}" title="Open source evidence">↗</a>` : ''}</div>`;
+    const appearance = appearances.get(other.id)!;
+    return `<div class="relation"><button class="relation-main" data-select="${esc(other.id)}" title="${esc(appearance.label)}">${appearance.svg}<span class="relation-copy">${esc(other.label)}<small>${esc(e.label || 'Connected')}</small></span><span class="sr-only">, ${esc(appearance.label)}</span></button>${e.evidencePath ? `<a class="relation-source" href="/source?path=${encodeURIComponent(e.evidencePath)}" target="_blank" rel="noopener" aria-label="Open evidence for ${esc(other.label)}" title="Open source evidence">↗</a>` : ''}</div>`;
   }).join('');
 }
 async function select(id: string) {
@@ -58,7 +98,8 @@ async function select(id: string) {
   selectedId = id; syncSelection(); panel('inspector',true);
   if(innerWidth <= 700) panel('navigator',false);
   const incoming = graph.edges.filter(e => e.to === id), outgoing = graph.edges.filter(e => e.from === id);
-  $('detail').innerHTML = `<p class="component-type">${esc(groups.get(node.groupId!) || node.type)}</p><h3 class="detail-title">${esc(node.label)}</h3>${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}<p class="description">${esc(node.description || node.type)}</p>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<button class="clear-selection">Clear selection</button>`;
+  const appearance = appearances.get(id)!;
+  $('detail').innerHTML = `<p class="component-type" title="${esc(appearance.label)}">${appearance.svg}<span>${esc(node.type)}</span></p><h3 class="detail-title">${esc(node.label)}</h3>${groups.has(node.groupId!) ? `<p class="component-area">${esc(groups.get(node.groupId!)!)}</p>` : ''}${node.path ? `<a class="source-link" href="/source?path=${encodeURIComponent(node.path)}" target="_blank" rel="noopener" title="Open local source">${esc(node.path)} ↗</a>` : ''}<p class="description">${esc(node.description || node.type)}</p>${incoming.length ? `<h4 class="relations-heading">Incoming <span>${incoming.length}</span></h4>${relationshipList(incoming,true)}` : ''}${outgoing.length ? `<h4 class="relations-heading">Outgoing <span>${outgoing.length}</span></h4>${relationshipList(outgoing,false)}` : ''}<button class="clear-selection">Clear selection</button>`;
   for(const button of $('detail').querySelectorAll<HTMLButtonElement>('[data-select]')) button.addEventListener('click',() => select(button.dataset.select!));
   $('detail').querySelector('.clear-selection')!.addEventListener('click',clearSelection);
 }
@@ -68,7 +109,10 @@ function componentIndex() {
   $('count').textContent = query ? `${matches.length} / ${activeGraph.nodes.length}` : String(activeGraph.nodes.length);
   $('components').innerHTML = graph.groups.map(g => {
     const nodes = matches.filter(n => n.groupId === g.id);
-    return nodes.length ? `<p class="group-label">${esc(g.label)}</p>${nodes.map(n => `<button class="component" data-id="${esc(n.id)}" aria-pressed="${n.id === selectedId}">${esc(n.label)}</button>`).join('')}` : '';
+    return nodes.length ? `<p class="group-label">${esc(g.label)}</p>${nodes.map(n => {
+      const appearance = appearances.get(n.id)!;
+      return `<button class="component" data-id="${esc(n.id)}" aria-pressed="${n.id === selectedId}" title="${esc(appearance.label)} · ${esc(n.type)}">${appearance.svg}<span>${esc(n.label)}</span><span class="sr-only">, ${esc(appearance.label)}</span></button>`;
+    }).join('')}` : '';
   }).join('') || '<p class="empty">No matching components.<br>Try a different name or source path.</p>';
   for(const button of document.querySelectorAll<HTMLButtonElement>('.component')) button.addEventListener('click',() => select(button.dataset.id!));
 }
@@ -83,11 +127,12 @@ async function renderView(id: string) {
   $('loading').hidden = false; viewSelect.disabled = true; renderedSvg = undefined; $('export').setAttribute('disabled','');
   viewport?.destroy(); viewport = undefined;
   try {
-    const config = buildMermaidConfig({isDark:false,backgroundColor:'#fbfcfd'});
+    const palette = diagramPalette();
+    const config = buildMermaidConfig({isDark:theme.current === 'dark',backgroundColor:palette.background});
     mermaid.initialize({...config,fontFamily:"'Segoe UI', sans-serif",fontSize:14,
-      themeVariables:{...config.themeVariables,lineColor:'#8995a5',clusterBkg:'#f6f8fa',clusterBorder:'#dce2e9',fontSize:'14px',edgeLabelBackground:'#fbfcfd'},
+      themeVariables:{...config.themeVariables,lineColor:palette.edge,clusterBkg:palette.cluster,clusterBorder:palette.clusterBorder,fontSize:'14px',edgeLabelBackground:palette.label},
       flowchart:{...config.flowchart,nodeSpacing:36,rankSpacing:48}});
-    const source = sanitizeMermaidSourceForRender(view.mermaid).replace(/^classDef (tone\w+) .*$/gm,'classDef $1 fill:#ffffff,stroke:#9aa7b6,stroke-width:1px,color:#253144');
+    const source = sanitizeMermaidSourceForRender(view.mermaid).replace(/^classDef (tone\w+) .*$/gm,`classDef $1 fill:${palette.node},stroke:${palette.border},stroke-width:1px,color:${palette.text}`);
     const result = await mermaid.render('local-architecture',source);
     $('canvas').innerHTML = DOMPurify.sanitize(result.svg,MERMAID_SVG_SANITIZE_OPTIONS);
     renderedSvg = $('canvas').querySelector('svg')!;
@@ -99,6 +144,7 @@ async function renderView(id: string) {
         if(shape.style.getPropertyPriority(property) === 'important') shape.style.removeProperty(property);
       }
     }
+    applyDiagramTheme(renderedSvg);
     viewport = createViewport($('stage'),$('canvas')); viewport.setTouchPanning(true); viewport.fit('whole');
     for(const node of renderedSvg.querySelectorAll<SVGGElement>('.node')) {
       const component = graph.nodes.find(n => node.id.includes(`flowchart-node_${n.id}-`));

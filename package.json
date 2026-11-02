@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node build.mjs",
     "start": "node server.mjs",
-    "test": "node --test server.test.mjs diagram-interactions.test.mjs"
+    "test": "node --test server.test.mjs diagram-interactions.test.mjs component-icons.test.mjs theme.test.mjs"
   },
   "dependencies": {
     "dompurify": "^3.4.17",

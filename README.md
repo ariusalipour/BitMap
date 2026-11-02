@@ -4,6 +4,10 @@ BitMap is a local architecture explorer for software repositories. It renders a 
 
 BitMap validates and renders a graph you provide. It does not analyze source code automatically, generate diagrams with AI, or send repository content to a hosted service. The included example graph describes BitMap itself.
 
+Component icons in the navigator, details, and connection lists reflect each node's declared type: classes, interfaces, functions, methods, modules, services, databases, queues, UI views, build pipelines, and security components. Shape and source-path hints provide conservative fallbacks for generic nodes. A source filename alone never identifies a class or function. Hover a component to see its icon category and declared type; assistive technology also receives the category.
+
+Use the moon/sun button in the header to switch between light and dark mode. BitMap follows the system preference until you choose a theme, then remembers your choice in this browser. Changing theme preserves the current view, selection, pan and zoom. SVG exports retain the active diagram palette.
+
 ## Requirements
 
 - Node.js 20 or newer
